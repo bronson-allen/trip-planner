@@ -1,0 +1,54 @@
+:root {
+  --ink: #1c1a33;
+  --ink-soft: #6b6a86;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-sans: 'Manrope', system-ui, sans-serif;
+  --radius: 1rem;
+  /* Default browser 16px; rem-based layouts scale from here */
+  font-size: 100%;
+}
+
+/* Laptop / shorter viewports: denser rem scale so more UI fits */
+@media (max-width: 1600px), (max-height: 1000px) {
+  :root {
+    font-size: 93.75%; /* 15px */
+  }
+}
+
+@media (max-width: 1512px), (max-height: 920px) {
+  :root {
+    font-size: 87.5%; /* 14px */
+  }
+}
+
+@media (max-width: 1366px) and (max-height: 860px) {
+  :root {
+    font-size: 81.25%; /* 13px */
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  color: var(--ink);
+  background: #eef1ff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100svh;
+}
