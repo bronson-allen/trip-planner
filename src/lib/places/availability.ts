@@ -1,4 +1,4 @@
-import type { NormalizedPlace } from './normalize'
+import type { NormalizedPlace, ParsedHours } from './normalize'
 
 /**
  * Temporal availability — does a place's own stated schedule let it be open during the trip?
@@ -77,6 +77,27 @@ export function parseOpenWeekdays(days: string | null): Set<number> | null {
   return result.size > 0 ? result : null
 }
 
+/**
+ * Every weekday the place is open, across all of its parsed windows.
+ *
+ * `hours.days` is only set when the windows agree, so a place with two different ranges
+ * ("Mon-Fri 7:00-14:00, Sat 7:00-17:00") collapses to null and would read as having no day
+ * constraint at all. Each window carries its own range, so union them instead. A window whose
+ * range can't be parsed still means "unknown", and unknown stays open.
+ */
+export function openWeekdays(hours: ParsedHours): Set<number> | null {
+  const shared = parseOpenWeekdays(hours.days)
+  if (shared) return shared
+
+  const union = new Set<number>()
+  for (const window of hours.windows) {
+    const days = parseOpenWeekdays(window.days)
+    if (!days) return null
+    for (const day of days) union.add(day)
+  }
+  return union.size > 0 ? union : null
+}
+
 export type SeasonWindow = { startMonth: number; endMonth: number }
 
 /**
@@ -112,7 +133,7 @@ function monthInWindow(month: number, window: SeasonWindow): boolean {
 
 /** Whether the place can be open on this specific date, per the signals we can parse. */
 export function isOpenOnDate(place: NormalizedPlace, date: Date): boolean {
-  const weekdays = parseOpenWeekdays(place.hours.days)
+  const weekdays = openWeekdays(place.hours)
   if (weekdays && !weekdays.has(date.getDay())) return false
 
   const window = parseSeasonWindow(place.seasonalNotes)

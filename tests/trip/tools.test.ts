@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { PLACES } from '../../src/data/places'
 import { defaultTripPlan } from '../../src/data/tripPlan'
-import { initTripState } from '../../src/lib/trip/tripState'
+import { haversineMeters } from '../../src/lib/geo/directions'
+import { isMeal } from '../../src/lib/trip/itinerary'
+import { initTripState, resolveTrip } from '../../src/lib/trip/tripState'
 import {
   addStop,
   explainStop,
@@ -161,5 +163,93 @@ describe('trip tools', () => {
 
     const day3Slots = moved.value.tripState.days[2].stops.map((stop) => stop.slot)
     expect(day3Slots.filter((slot) => slot === 'morning').length).toBeLessThanOrEqual(1)
+  })
+
+  it('makes a day fuller with a stop that does not explode the walking distance', () => {
+    // Taking the globally best unused place used to drop a stop 4–7 km from every existing
+    // day-3 stop. fuller now prefers the best-scoring candidate whose added walking stays
+    // under the day-cost budget (with a cheapest-fallback when every option is expensive).
+    const state = initTripState({ ...defaultTripPlan(), city: 'Rome', startDate: '2026-08-03' })
+    const before = resolveTrip(state).find((day) => day.day === 3)
+    expect(before).toBeDefined()
+    if (!before) return
+
+    const walk = (stops: typeof before.stops) =>
+      stops.reduce((sum, stop) => sum + (stop.travelFromPrev?.distanceMeters ?? 0), 0)
+
+    const result = rebalanceDay(state, PLACES, { day: 3, direction: 'fuller' })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const after = resolveTrip(result.value.tripState).find((day) => day.day === 3)
+    expect(after).toBeDefined()
+    if (!after) return
+
+    const added = after.stops.find(
+      (stop) => !before.stops.some((existing) => existing.place.id === stop.place.id),
+    )
+    expect(added).toBeDefined()
+    if (!added) return
+
+    const nearestExisting = Math.min(
+      ...before.stops.map((stop) => haversineMeters(stop.place, added.place)),
+    )
+    expect(nearestExisting).toBeLessThan(3_000)
+    expect(walk(after.stops) - walk(before.stops)).toBeLessThan(4_000)
+  })
+
+  it('re-slots a museum out of dinner when swapStop crosses meal-ness', () => {
+    const state = initTripState({ ...defaultTripPlan(), city: 'Rome', startDate: '2026-08-03' })
+    const dinner = resolveTrip(state)
+      .flatMap((day) => day.stops.map((stop) => ({ day: day.day, stop })))
+      .find((entry) => entry.stop.slot === 'dinner')
+    expect(dinner).toBeDefined()
+    if (!dinner) return
+
+    const museum = searchPlaces(state, PLACES, { types: ['museum'], limit: 1 })
+    expect(museum.ok).toBe(true)
+    if (!museum.ok || !museum.value[0]) return
+
+    const result = swapStop(state, PLACES, {
+      placeId: dinner.stop.place.id,
+      replacementPlaceId: museum.value[0].id,
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const day = resolveTrip(result.value.tripState).find((entry) => entry.day === dinner.day)
+    expect(day).toBeDefined()
+    if (!day) return
+
+    const replaced = day.stops.find((stop) => stop.place.id === museum.value[0].id)
+    expect(replaced).toBeDefined()
+    expect(replaced?.slot).not.toBe('dinner')
+    expect(isMeal(replaced!.place)).toBe(false)
+    expect(day.stops.find((stop) => stop.slot === 'dinner')).toBeUndefined()
+  })
+
+  it('keeps the slot on a like-for-like meal swap', () => {
+    const state = initTripState({ ...defaultTripPlan(), city: 'Rome', startDate: '2026-08-03' })
+    const lunch = resolveTrip(state)
+      .flatMap((day) => day.stops.map((stop) => ({ day: day.day, stop })))
+      .find((entry) => entry.stop.slot === 'lunch')
+    expect(lunch).toBeDefined()
+    if (!lunch) return
+
+    const restaurant = searchPlaces(state, PLACES, { types: ['restaurant'], limit: 1 })
+    expect(restaurant.ok).toBe(true)
+    if (!restaurant.ok || !restaurant.value[0]) return
+
+    const result = swapStop(state, PLACES, {
+      placeId: lunch.stop.place.id,
+      replacementPlaceId: restaurant.value[0].id,
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const replaced = resolveTrip(result.value.tripState)
+      .find((day) => day.day === lunch.day)
+      ?.stops.find((stop) => stop.place.id === restaurant.value[0].id)
+    expect(replaced?.slot).toBe('lunch')
   })
 })

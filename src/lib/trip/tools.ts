@@ -4,6 +4,7 @@ import { parseIsoDate } from '../dates'
 import { estimateTravel, haversineMeters, type TravelEstimate } from '../geo/directions'
 import {
   daypartRank,
+  isAutoSchedulable,
   isMeal,
   isPlaceEligibleForTrip,
   type SlotKind,
@@ -188,8 +189,9 @@ function insertStopBySlot(
 
 /**
  * Every unused, eligible place matching the supplied constraints, best-first and uncapped.
- * `searchPlaces` wraps this for the assistant (validated args, capped payload); the Explore
- * UI consumes it directly so the manual filters and the tool can never disagree.
+ * `searchPlaces` wraps this for the assistant (validated args, capped payload). Eligibility runs
+ * through the same `isPlaceEligibleForTrip` gate the scheduler and Explore use, so no surface can
+ * offer a place another one would reject.
  */
 export function filterPlaces(
   state: TripState,
@@ -356,20 +358,27 @@ export function swapStop(
   const validation = validateNewPlace(state, places, args.replacementPlaceId, args.placeId)
   if (!validation.ok) return validation
   const replacement = validation.value
+
+  // A slot is a time of day, not a property of the place. Keeping it verbatim is right for a
+  // like-for-like swap, but swapping a restaurant for a museum would otherwise leave a museum
+  // sitting in the dinner slot — so re-resolve the slot (and the day's order) when meal-ness
+  // changes.
+  const remaining = found.day.stops.filter((stop) => stop.placeId !== args.placeId)
+  const stops =
+    isMeal(current) === isMeal(replacement)
+      ? found.day.stops.map((stop) =>
+          stop.placeId === args.placeId ? { placeId: replacement.id, slot: stop.slot } : stop,
+        )
+      : insertStopBySlot(
+          remaining,
+          { placeId: replacement.id, slot: resolveSlotForDay(remaining, replacement) },
+          places,
+          state,
+        )
+
   const next = {
     ...state,
-    days: state.days.map((day) =>
-      day.day === found.day.day
-        ? {
-            ...day,
-            stops: day.stops.map((stop) =>
-              stop.placeId === args.placeId
-                ? { placeId: replacement.id, slot: stop.slot }
-                : stop,
-            ),
-          }
-        : day,
-    ),
+    days: state.days.map((day) => (day.day === found.day.day ? { ...day, stops } : day)),
   }
   return success({
     tripState: next,
@@ -408,6 +417,53 @@ export function reorderStop(
   })
 }
 
+/** How much extra walking one added stop may cost a day before it stops being worth it. */
+const FULLER_MAX_ADDED_METERS = 3_000
+
+/** Straight-line walking along a day's stops, in the order `addStop` would leave them. */
+function dayWalkingMeters(stops: PlannedStop[], places: NormalizedPlace[]): number {
+  const resolved = stops.flatMap((stop) => {
+    const place = findPlace(places, stop.placeId)
+    return place ? [place] : []
+  })
+
+  let total = 0
+  for (let index = 1; index < resolved.length; index += 1) {
+    total += haversineMeters(resolved[index - 1], resolved[index])
+  }
+  return total
+}
+
+/**
+ * The place to add when a day should be fuller.
+ *
+ * Taking the globally best-scoring unused place ignores where the day already is and can drop a
+ * stop clear across the city, undoing the geographic clustering the itinerary is built on. Judge
+ * candidates by what they cost the day instead: `ranked` is score-ordered, so the first one that
+ * adds an acceptable amount of walking is also the best-scoring one that does. When every
+ * candidate is expensive — a day already spread across town — take the cheapest.
+ */
+function selectFullerCandidate(
+  stops: PlannedStop[],
+  ranked: NormalizedPlace[],
+  places: NormalizedPlace[],
+  state: TripState,
+): NormalizedPlace | null {
+  const current = dayWalkingMeters(stops, places)
+  let cheapest: { place: NormalizedPlace; added: number } | null = null
+
+  for (const place of ranked) {
+    const stop = { placeId: place.id, slot: resolveSlotForDay(stops, place) }
+    const added =
+      dayWalkingMeters(insertStopBySlot(stops, stop, places, state), places) - current
+
+    if (added <= FULLER_MAX_ADDED_METERS) return place
+    if (!cheapest || added < cheapest.added) cheapest = { place, added }
+  }
+
+  return cheapest?.place ?? null
+}
+
 export function rebalanceDay(
   state: TripState,
   places: NormalizedPlace[],
@@ -417,9 +473,8 @@ export function rebalanceDay(
   if (!day) return failure('DAY_NOT_FOUND', `Day ${args.day} is not in this itinerary.`)
 
   if (args.direction === 'fuller') {
-    const candidates = searchPlaces(state, places, { limit: 1 })
-    if (!candidates.ok) return candidates
-    const candidate = candidates.value[0]
+    const ranked = filterPlaces(state, places, {}).filter(isAutoSchedulable)
+    const candidate = selectFullerCandidate(day.stops, ranked, places, state)
     if (!candidate) return failure('NO_CANDIDATES', 'No eligible unused places remain.')
     return addStop(state, places, { placeId: candidate.id, day: args.day })
   }

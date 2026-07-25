@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import rawPlaces from '../../src/data/italy.json'
 import {
   isClosedForTrip,
+  isOpenOnDate,
+  openWeekdays,
   parseOpenWeekdays,
   parseSeasonWindow,
 } from '../../src/lib/places/availability'
@@ -23,6 +25,27 @@ describe('parseOpenWeekdays', () => {
 
   it('returns null for unknown (no day constraint)', () => {
     expect(parseOpenWeekdays(null)).toBeNull()
+  })
+})
+
+describe('openWeekdays reads the windows when they disagree', () => {
+  it('unions per-window day ranges instead of losing them', () => {
+    // "Mon-Fri 7:00-14:00, Sat 7:00-17:00" — two different ranges, so hours.days collapses to
+    // null. Reading only that field would treat a place closed on Sunday as open all week.
+    const mercato = byName('Mercato Centrale Firenze')
+    expect(mercato.hours.days).toBeNull()
+    expect([...(openWeekdays(mercato.hours) ?? [])].sort()).toEqual([1, 2, 3, 4, 5, 6])
+
+    const sunday = new Date(2026, 7, 2)
+    const saturday = new Date(2026, 7, 1)
+    expect(sunday.getDay()).toBe(0)
+    expect(isOpenOnDate(mercato, sunday)).toBe(false)
+    expect(isOpenOnDate(mercato, saturday)).toBe(true)
+  })
+
+  it('still reports no constraint when the windows name no days', () => {
+    const pantheon = byName('Pantheon')
+    expect(openWeekdays(pantheon.hours)).toBeNull()
   })
 })
 

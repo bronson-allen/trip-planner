@@ -30,5 +30,10 @@ dist-ssr
 # Personal scratch notes — not part of the repo
 thoughts.md
 
+# Private working docs — only the assessment brief and submission write-up are public
+docs/*
+!docs/assessment.md
+!docs/WRITE_UP.md
+
 # Vercel local link metadata
 .vercel

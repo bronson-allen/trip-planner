@@ -2574,8 +2574,15 @@ var italy_default = [
   }
 ];
 
+// src/data/otherImages.json
+var otherImages_default = {
+  "italy-flag": "https://upload.wikimedia.org/wikipedia/commons/0/03/Flag_of_Italy.svg"
+};
+
 // src/data/places.ts
 var PLACES = italy_default.map(normalizePlace);
+var otherImages = otherImages_default;
+var ITALY_FLAG_URL = otherImages["italy-flag"];
 var PLACES_BY_ID = new Map(
   PLACES.map((place) => [place.id, place])
 );
@@ -2691,6 +2698,17 @@ function parseOpenWeekdays(days) {
   }
   return result.size > 0 ? result : null;
 }
+function openWeekdays(hours) {
+  const shared = parseOpenWeekdays(hours.days);
+  if (shared) return shared;
+  const union = /* @__PURE__ */ new Set();
+  for (const window of hours.windows) {
+    const days = parseOpenWeekdays(window.days);
+    if (!days) return null;
+    for (const day of days) union.add(day);
+  }
+  return union.size > 0 ? union : null;
+}
 function parseSeasonWindow(notes) {
   if (!notes) return null;
   const text = notes.toLowerCase();
@@ -2711,7 +2729,7 @@ function monthInWindow(month, window) {
   return startMonth <= endMonth ? month >= startMonth && month <= endMonth : month >= startMonth || month <= endMonth;
 }
 function isOpenOnDate(place, date) {
-  const weekdays = parseOpenWeekdays(place.hours.days);
+  const weekdays = openWeekdays(place.hours);
   if (weekdays && !weekdays.has(date.getDay())) return false;
   const window = parseSeasonWindow(place.seasonalNotes);
   if (window && !monthInWindow(date.getMonth() + 1, window)) return false;
@@ -2826,6 +2844,10 @@ var MEAL_TYPES = /* @__PURE__ */ new Set(["restaurant", "cafe"]);
 var MAX_CITY_RADIUS_KM = 40;
 function isMeal(place) {
   return MEAL_TYPES.has(place.type);
+}
+var AUTO_SCHEDULE_MIN_RATING = 3;
+function isAutoSchedulable(place) {
+  return place.rating >= AUTO_SCHEDULE_MIN_RATING;
 }
 function daypartRank(place) {
   for (const tag of place.tags) {
@@ -3044,16 +3066,18 @@ function swapStop(state, places, args) {
   const validation = validateNewPlace(state, places, args.replacementPlaceId, args.placeId);
   if (!validation.ok) return validation;
   const replacement = validation.value;
+  const remaining = found.day.stops.filter((stop) => stop.placeId !== args.placeId);
+  const stops = isMeal(current) === isMeal(replacement) ? found.day.stops.map(
+    (stop) => stop.placeId === args.placeId ? { placeId: replacement.id, slot: stop.slot } : stop
+  ) : insertStopBySlot(
+    remaining,
+    { placeId: replacement.id, slot: resolveSlotForDay(remaining, replacement) },
+    places,
+    state
+  );
   const next = {
     ...state,
-    days: state.days.map(
-      (day) => day.day === found.day.day ? {
-        ...day,
-        stops: day.stops.map(
-          (stop) => stop.placeId === args.placeId ? { placeId: replacement.id, slot: stop.slot } : stop
-        )
-      } : day
-    )
+    days: state.days.map((day) => day.day === found.day.day ? { ...day, stops } : day)
   };
   return success({
     tripState: next,
@@ -3083,13 +3107,35 @@ function reorderStop(state, places, args) {
     summary: `Moved ${place.name} to position ${args.toIndex + 1} on day ${found.day.day}.`
   });
 }
+var FULLER_MAX_ADDED_METERS = 3e3;
+function dayWalkingMeters(stops, places) {
+  const resolved = stops.flatMap((stop) => {
+    const place = findPlace(places, stop.placeId);
+    return place ? [place] : [];
+  });
+  let total = 0;
+  for (let index = 1; index < resolved.length; index += 1) {
+    total += haversineMeters(resolved[index - 1], resolved[index]);
+  }
+  return total;
+}
+function selectFullerCandidate(stops, ranked, places, state) {
+  const current = dayWalkingMeters(stops, places);
+  let cheapest = null;
+  for (const place of ranked) {
+    const stop = { placeId: place.id, slot: resolveSlotForDay(stops, place) };
+    const added = dayWalkingMeters(insertStopBySlot(stops, stop, places, state), places) - current;
+    if (added <= FULLER_MAX_ADDED_METERS) return place;
+    if (!cheapest || added < cheapest.added) cheapest = { place, added };
+  }
+  return cheapest?.place ?? null;
+}
 function rebalanceDay(state, places, args) {
   const day = state.days.find((entry) => entry.day === args.day);
   if (!day) return failure("DAY_NOT_FOUND", `Day ${args.day} is not in this itinerary.`);
   if (args.direction === "fuller") {
-    const candidates = searchPlaces(state, places, { limit: 1 });
-    if (!candidates.ok) return candidates;
-    const candidate = candidates.value[0];
+    const ranked2 = filterPlaces(state, places, {}).filter(isAutoSchedulable);
+    const candidate = selectFullerCandidate(day.stops, ranked2, places, state);
     if (!candidate) return failure("NO_CANDIDATES", "No eligible unused places remain.");
     return addStop(state, places, { placeId: candidate.id, day: args.day });
   }

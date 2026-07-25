@@ -1,4 +1,4 @@
-import { isClosedForTrip } from '../places/availability'
+import { isClosedForTrip, isOpenOnDate } from '../places/availability'
 import { estimateTravel, haversineMeters, type TravelEstimate } from '../geo/directions'
 import type { NormalizedPlace } from '../places/normalize'
 import { rankPlaces, type Pace, type TripPrefs } from '../places/score'
@@ -98,6 +98,21 @@ export function isMeal(place: NormalizedPlace): boolean {
   return MEAL_TYPES.has(place.type)
 }
 
+/**
+ * Rating floor for places the planner picks on the traveler's behalf. The dataset contains exactly
+ * one entry below it — a 2.1-rated tourist-trap restaurant, more than two points below anything
+ * else, which `audit.ts` already reports as a `low_rating_outlier`.
+ *
+ * This is a floor on what the planner *volunteers*, not on what a trip may contain: the place
+ * stays visible in Explore and `addStop` still accepts it, so a traveler who wants it can have it.
+ */
+const AUTO_SCHEDULE_MIN_RATING = 3
+
+/** Whether the planner may choose this place without being asked for it by name. */
+export function isAutoSchedulable(place: NormalizedPlace): boolean {
+  return place.rating >= AUTO_SCHEDULE_MIN_RATING
+}
+
 /** Chronological rank from the daypart tag: morning first (0), evening last (2), rest mid (1). */
 export function daypartRank(place: NormalizedPlace): number {
   for (const tag of place.tags) {
@@ -162,24 +177,40 @@ function centroid(places: NormalizedPlace[]): LatLng {
 }
 
 /**
+ * Narrows a pool to what the data says is open on this date, but never to nothing: a stop the
+ * UI flags as "may be closed" is more useful to the traveler than a hole in the day. Preserves
+ * the incoming order, so a score-ranked pool stays score-ranked.
+ */
+function openOnDateFirst(pool: NormalizedPlace[], date: Date | null): NormalizedPlace[] {
+  if (!date) return pool
+  const open = pool.filter((place) => isOpenOnDate(place, date))
+  return open.length > 0 ? open : pool
+}
+
+/**
  * Picks one day's worth of sights: a high-scored anchor plus its nearest unused neighbours,
- * so the day stays geographically tight. `ranked` is score-ordered, so `find` yields the best
- * remaining place as the anchor. Marks chosen ids in `used`.
+ * so the day stays geographically tight. `ranked` is score-ordered, so the first eligible entry
+ * is the best remaining place. Marks chosen ids in `used`.
+ *
+ * `date` makes the choice day-aware: `isClosedForTrip` only drops places closed across the whole
+ * trip, which still leaves a Tues-Sun museum landing on a Monday when another day was free.
  */
 function selectDaySights(
   ranked: NormalizedPlace[],
   used: Set<string>,
   sightSlots: number,
+  date: Date | null,
 ): NormalizedPlace[] {
-  const anchor = ranked.find((place) => !used.has(place.id))
+  const unused = () => ranked.filter((place) => !used.has(place.id))
+
+  const anchor = openOnDateFirst(unused(), date)[0]
   if (!anchor) return []
 
   const chosen = [anchor]
   used.add(anchor.id)
 
   while (chosen.length < sightSlots) {
-    const pool = ranked.filter((place) => !used.has(place.id))
-    const next = nearest(anchor, pool)
+    const next = nearest(anchor, openOnDateFirst(unused(), date))
     if (!next) break
     used.add(next.id)
     chosen.push(next)
@@ -187,13 +218,39 @@ function selectDaySights(
   return chosen
 }
 
-/** Assembles one day: sights ordered by daypart, meals slotted in nearest to the day's centre. */
+/**
+ * How far from the day's centre a meal may sit and still count as on the way. Wide enough that
+ * every day has real choice, tight enough that lunch isn't across the city.
+ */
+const MEAL_RADIUS_METERS = 2_500
+
+/**
+ * Best meal near the day's centre, preferring one open on the date. `meals` arrives
+ * score-ordered, so the first candidate inside the radius is also the best-scoring one.
+ *
+ * Distance alone is not enough: the dataset's worst-rated place is a tourist-trap restaurant
+ * that happens to sit close to the middle of a classic Rome day, and picking purely by
+ * proximity schedules it over far better options a few hundred metres further out. Nothing in
+ * range falls back to the closest, since a distant meal still beats an empty slot.
+ */
+function selectMeal(
+  center: LatLng,
+  meals: NormalizedPlace[],
+  date: Date | null,
+): NormalizedPlace | null {
+  const pool = openOnDateFirst(meals, date)
+  const inRange = pool.find((meal) => haversineMeters(center, meal) <= MEAL_RADIUS_METERS)
+  return inRange ?? nearest(center, pool)
+}
+
+/** Assembles one day: sights ordered by daypart, meals chosen near the day's centre. */
 function buildDay(
   dayNumber: number,
   template: ReadonlyArray<Slot>,
   sights: NormalizedPlace[],
   meals: NormalizedPlace[],
   used: Set<string>,
+  date: Date | null,
 ): ItineraryDay {
   const orderedSights = [...sights].sort((a, b) => daypartRank(a) - daypartRank(b))
   const center = sights.length ? centroid(sights) : null
@@ -207,7 +264,7 @@ function buildDay(
     if (slot.type === 'sight') {
       place = orderedSights[sightIndex++] ?? null
     } else if (center) {
-      place = nearest(center, meals.filter((meal) => !used.has(meal.id)))
+      place = selectMeal(center, meals.filter((meal) => !used.has(meal.id)), date)
       if (place) used.add(place.id)
     }
 
@@ -241,8 +298,10 @@ export function buildItinerary(
   // top-ranked place's city. Everything after this only ever sees that one city.
   const city = options.city ?? ranked[0]?.city ?? ''
   // Keep scheduler and edit tools behind the same deterministic eligibility gate.
-  const candidates = ranked.filter((place) =>
-    isPlaceEligibleForTrip(place, places, city, options.tripDates ?? []),
+  const candidates = ranked.filter(
+    (place) =>
+      isAutoSchedulable(place) &&
+      isPlaceEligibleForTrip(place, places, city, options.tripDates ?? []),
   )
 
   const sights = candidates.filter((place) => !isMeal(place))
@@ -250,11 +309,13 @@ export function buildItinerary(
 
   const used = new Set<string>()
   const days: ItineraryDay[] = []
+  const dates = options.tripDates ?? []
 
   for (let day = 1; day <= dayCount; day++) {
-    const daySights = selectDaySights(sights, used, sightSlots)
+    const date = dates[day - 1] ?? null
+    const daySights = selectDaySights(sights, used, sightSlots, date)
     if (daySights.length === 0) break // ran out of places
-    days.push(buildDay(day, template, daySights, meals, used))
+    days.push(buildDay(day, template, daySights, meals, used, date))
   }
 
   return { city, days }
