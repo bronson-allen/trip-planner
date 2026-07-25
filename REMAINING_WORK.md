@@ -42,8 +42,8 @@ commit `83faf3b` on `origin/ai-assistant-integration`. Only the merge to `main` 
 
 - [x] Commit the AI layer on `ai-assistant-integration` — `83faf3b`, 77 files
 - [x] Push the branch — tracking `origin/ai-assistant-integration`
-- [ ] Merge to `main` (reviewers land on the default branch) — open as
-      [PR #1](https://github.com/bronson-allen/trip-planner/pull/1)
+- [x] Merge to `main` (reviewers land on the default branch) —
+      [PR #1](https://github.com/bronson-allen/trip-planner/pull/1) merged 2026-07-24
 - [x] Confirm `.env` is not in the commit — verified; only the `.env.example` placeholder is
       tracked, and no `sk-` secret appears anywhere in the tree
 
