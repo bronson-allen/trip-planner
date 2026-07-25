@@ -7,7 +7,15 @@
 > bug, the Venice driving-routes decision) and `docs/legacy/write-up-v1.md` (the data-messiness
 > section, which is still the strongest prose in the earlier draft).
 
-**Live app:** «URL» · **Repo:** https://github.com/bronson-allen/trip-planner
+**Live app:** https://trip-planner-bronson.vercel.app · **Repo:** https://github.com/bronson-allen/trip-planner
+
+**Deployment.** I tried Stripe Projects first to provision Vercel from the Stripe CLI — a natural fit
+for a Stripe take-home, and cleaner than juggling provider dashboards by hand. Account ownership
+and Projects setup blocked that path, so I fell back to the Vercel CLI / Git integration: same
+hosting target, less ceremony. Env vars (`OPENAI_API_KEY`, `MAPBOX_API_KEY`, `APP_ORIGIN`) live in
+Vercel, not the repo. The production `/api/assistant` entry is an esbuild bundle of the shared
+engine — Vite's local middleware and Vercel's function runtime are not the same compiler, and the
+cross-folder `.ts` imports only work once they're bundled.
 
 ---
 
