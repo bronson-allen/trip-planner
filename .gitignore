@@ -29,3 +29,9 @@ dist-ssr
 
 # Personal scratch notes — not part of the repo
 thoughts.md
+
+# Vercel local link metadata
+.vercel
+
+# Bundled serverless entry (emitted by `npm run bundle:api` for Vercel)
+api/assistant.js

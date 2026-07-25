@@ -42,29 +42,24 @@ commit `83faf3b` on `origin/ai-assistant-integration`. Only the merge to `main` 
 
 - [x] Commit the AI layer on `ai-assistant-integration` — `83faf3b`, 77 files
 - [x] Push the branch — tracking `origin/ai-assistant-integration`
-- [ ] Merge to `main` (reviewers land on the default branch) — open as
-      [PR #1](https://github.com/bronson-allen/trip-planner/pull/1)
+- [x] Merge to `main` (reviewers land on the default branch) —
+      [PR #1](https://github.com/bronson-allen/trip-planner/pull/1) merged 2026-07-24
 - [x] Confirm `.env` is not in the commit — verified; only the `.env.example` placeholder is
       tracked, and no `sk-` secret appears anywhere in the tree
 
 ### 2. Deploy, and deploy early
-No `.vercel/`, no `vercel` dependency, no live URL. The assessment requires one.
+Live URL: https://trip-planner-bronson.vercel.app. GitHub is connected to the Vercel project.
 
-**The production path has never executed.** `npm run dev` serves `/api/assistant` through a Vite
-middleware plugin ([`vite.config.ts:19`](vite.config.ts:19)), *not* through Vercel's function
-runtime — so the passing local smoke tests do not prove the deployed function works. The specific
-risk is [`api/assistant.ts:4`](api/assistant.ts:4): it reaches across the `api/` boundary into
-`../src/data/places.ts` and `../src/lib/trip/tools.ts` using explicit `.ts` extensions, with a
-transitive `import italy from './italy.json'`. Fine under Vite/esbuild; the most likely thing to
-break on a first Vercel build.
+Tried Stripe Projects first; blocked by account ownership/setup, so deployed via Vercel CLI + Git
+instead. First production deploy proved the predicted failure mode: Vercel's function runtime did
+not resolve `api/assistant.ts`'s `.ts` imports into `src/`. Fix: `npm run bundle:api` (esbuild)
+emits `api/assistant.js` during `npm run build`. That fix is on this branch — merge to `main`
+(production branch) to ship it, then re-verify the live assistant.
 
-- [ ] Deploy via Stripe Projects → Vercel
-- [ ] Verify `/api/assistant` responds on the deployed URL, not just locally
-- [ ] Set `OPENAI_API_KEY` and `MAPBOX_API_KEY` in Vercel env
-- [ ] Set `APP_ORIGIN` to the real deployed origin (currently unset; prod would fall back to
-      `VERCEL_URL` / request origin)
-
-Budget real debugging time here. Do not leave it until the last hour.
+- [x] Deploy to Vercel (Stripe Projects blocked → Vercel CLI / Git)
+- [ ] Verify `/api/assistant` responds on the deployed URL after the bundle fix lands on `main`
+- [x] Set `OPENAI_API_KEY` and `MAPBOX_API_KEY` in Vercel env
+- [x] Set `APP_ORIGIN` to `https://trip-planner-bronson.vercel.app`
 
 ### 3. Write the submission note
 [`WRITE_UP.md`](WRITE_UP.md) is a scaffolded draft with the structure and the honest architecture
