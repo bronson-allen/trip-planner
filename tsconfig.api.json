@@ -14,5 +14,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["api", "src/data", "src/lib"]
+  "include": ["server", "src/data", "src/lib"]
 }

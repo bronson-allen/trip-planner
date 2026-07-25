@@ -52,12 +52,13 @@ Live URL: https://trip-planner-bronson.vercel.app. GitHub is connected to the Ve
 
 Tried Stripe Projects first; blocked by account ownership/setup, so deployed via Vercel CLI + Git
 instead. First production deploy proved the predicted failure mode: Vercel's function runtime did
-not resolve `api/assistant.ts`'s `.ts` imports into `src/`. Fix: `npm run bundle:api` (esbuild)
-emits `api/assistant.js` during `npm run build`. That fix is on this branch — merge to `main`
-(production branch) to ship it, then re-verify the live assistant.
+not resolve cross-folder `.ts` imports into `src/`. Source lives in `server/assistant.ts`;
+`npm run bundle:api` (esbuild) emits `api/assistant.js` during build so the only file under `api/`
+is a self-contained bundle (keeping a `.ts` next to it let Vercel overwrite the bundle with a
+shallow transpile).
 
 - [x] Deploy to Vercel (Stripe Projects blocked → Vercel CLI / Git)
-- [ ] Verify `/api/assistant` responds on the deployed URL after the bundle fix lands on `main`
+- [ ] Verify `/api/assistant` responds on the deployed URL after the server/ bundle fix lands
 - [x] Set `OPENAI_API_KEY` and `MAPBOX_API_KEY` in Vercel env
 - [x] Set `APP_ORIGIN` to `https://trip-planner-bronson.vercel.app`
 
