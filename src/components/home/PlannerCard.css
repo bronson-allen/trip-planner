@@ -1,0 +1,304 @@
+.planner-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(28, 26, 51, 0.28);
+  backdrop-filter: blur(6px);
+  animation: planner-fade-in 0.22s ease both;
+}
+
+.planner-card {
+  position: relative;
+  width: min(100%, 30rem);
+  max-height: min(92svh, 60rem);
+  overflow: auto;
+  padding: 1.75rem 1.5rem 1.5rem;
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f7f8ff 100%);
+  border: 1px solid rgba(91, 108, 255, 0.14);
+  box-shadow:
+    0 1px 2px rgba(55, 48, 110, 0.06),
+    0 18px 48px rgba(55, 48, 110, 0.16),
+    0 40px 80px rgba(91, 108, 255, 0.12);
+  animation: planner-rise 0.28s ease both;
+}
+
+.planner-card__close {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.planner-card__close:hover {
+  background: rgba(91, 108, 255, 0.08);
+  color: var(--ink);
+}
+
+.planner-card__close:focus-visible {
+  outline: 2px solid #5b6cff;
+  outline-offset: 2px;
+}
+
+.planner-card__header {
+  margin-bottom: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.planner-card__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+.planner-card__subtitle {
+  margin: 0.35rem 0 0;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+
+.planner-card__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.planner-field {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+/* legend is excluded from the fieldset flex gap in most browsers */
+.planner-field > legend.planner-field__label {
+  padding: 0;
+  margin-bottom: 0.65rem;
+}
+
+.planner-field__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.planner-field__pin {
+  color: #5b6cff;
+  flex-shrink: 0;
+}
+
+.planner-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+}
+
+.planner-input {
+  width: 100%;
+  appearance: none;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid rgba(91, 108, 255, 0.2);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+select.planner-input {
+  background-image:
+    linear-gradient(45deg, transparent 50%, #6b6a86 50%),
+    linear-gradient(135deg, #6b6a86 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.05rem) calc(50% + 0.15rem),
+    calc(100% - 0.7rem) calc(50% + 0.15rem);
+  background-size: 0.35rem 0.35rem, 0.35rem 0.35rem;
+  background-repeat: no-repeat;
+  padding-right: 2rem;
+}
+
+.planner-input:focus {
+  outline: none;
+  border-color: #5b6cff;
+  box-shadow: 0 0 0 3px rgba(91, 108, 255, 0.16);
+}
+
+.planner-field__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip-group--even {
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
+.chip-group--even .chip {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+  text-align: center;
+}
+
+.chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(91, 108, 255, 0.22);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.85rem;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.chip:hover:not(.chip--selected) {
+  border-color: rgba(91, 108, 255, 0.36);
+  background: #f8f9ff;
+}
+
+.chip:focus-visible {
+  outline: 2px solid #5b6cff;
+  outline-offset: 2px;
+}
+
+.chip--selected {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(135deg, #5b6cff 0%, #7b5cff 100%);
+  box-shadow: 0 6px 16px rgba(91, 108, 255, 0.28);
+}
+
+.chip--selected:hover {
+  box-shadow: 0 8px 18px rgba(91, 108, 255, 0.34);
+}
+
+.planner-card__divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(91, 108, 255, 0.22),
+    transparent
+  );
+}
+
+.planner-card__submit {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin-top: 0.25rem;
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.95rem 1.25rem;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+  background: linear-gradient(135deg, #5b6cff 0%, #7b5cff 100%);
+  box-shadow:
+    0 1px 2px rgba(55, 48, 110, 0.16),
+    0 10px 24px rgba(91, 108, 255, 0.3);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.planner-card__submit:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 2px rgba(55, 48, 110, 0.18),
+    0 14px 30px rgba(91, 108, 255, 0.36);
+}
+
+.planner-card__submit:focus-visible {
+  outline: 2px solid #5b6cff;
+  outline-offset: 3px;
+}
+
+.planner-card__submit:active {
+  transform: translateY(0);
+}
+
+@keyframes planner-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes planner-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 480px) {
+  .planner-overlay {
+    padding: 0.75rem;
+    align-items: end;
+  }
+
+  .planner-card {
+    width: 100%;
+    max-height: 94svh;
+    border-radius: var(--radius);
+    padding: 1.5rem 1.15rem 1.25rem;
+  }
+
+  .planner-field-row {
+    grid-template-columns: 1fr;
+  }
+}

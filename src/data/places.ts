@@ -1,4 +1,4 @@
-import { normalizePlace, type NormalizedPlace } from '../lib/normalize'
+import { normalizePlace, type NormalizedPlace } from '../lib/places/normalize'
 import italy from './italy.json'
 import placeImagesJson from './placeImages.json'
 

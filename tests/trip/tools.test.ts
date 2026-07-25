@@ -1,0 +1,128 @@
+import { describe, expect, it } from 'vitest'
+import { PLACES } from '../../src/data/places'
+import { defaultTripPlan } from '../../src/data/tripPlan'
+import { initTripState } from '../../src/lib/trip/tripState'
+import {
+  addStop,
+  explainStop,
+  nearbyPlaces,
+  rebalanceDay,
+  removeStop,
+  reorderStop,
+  searchPlaces,
+  swapStop,
+} from '../../src/lib/trip/tools'
+
+function stateFixture() {
+  return initTripState(defaultTripPlan())
+}
+
+describe('trip tools', () => {
+  it('searches only eligible unused dataset places', () => {
+    const state = stateFixture()
+    const result = searchPlaces(state, PLACES, { maxPrice: 2, limit: 5 })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const used = new Set(state.days.flatMap((day) => day.stops.map((stop) => stop.placeId)))
+    expect(result.value.length).toBeGreaterThan(0)
+    expect(result.value.every((place) => !used.has(place.id))).toBe(true)
+    expect(result.value.every((place) => PLACES.some((datasetPlace) => datasetPlace.id === place.id))).toBe(true)
+  })
+
+  it('supports matching any of several requested place types', () => {
+    const result = searchPlaces(stateFixture(), PLACES, {
+      types: ['restaurant', 'cafe'],
+      limit: 10,
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.every((place) => ['restaurant', 'cafe'].includes(place.type))).toBe(true)
+  })
+
+  it('explains an existing stop and rejects unknown ids', () => {
+    const state = stateFixture()
+    const placeId = state.days[0].stops[0].placeId
+
+    expect(explainStop(state, PLACES, placeId).ok).toBe(true)
+    expect(explainStop(state, PLACES, 'invented-id')).toEqual({
+      ok: false,
+      error: { code: 'STOP_NOT_FOUND', message: 'That place is not in this itinerary.' },
+    })
+  })
+
+  it('finds nearby unused places from a real stop', () => {
+    const state = stateFixture()
+    const placeId = state.days[0].stops[0].placeId
+    const result = nearbyPlaces(state, PLACES, placeId, 5)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.every((place) => place.distanceMeters <= 5_000)).toBe(true)
+  })
+
+  it('adds, removes, swaps, and reorders without mutating its input', () => {
+    const state = stateFixture()
+    const original = structuredClone(state)
+    const candidates = searchPlaces(state, PLACES, { limit: 2 })
+    expect(candidates.ok).toBe(true)
+    if (!candidates.ok) return
+
+    const added = addStop(state, PLACES, { placeId: candidates.value[0].id, day: 1 })
+    expect(added.ok).toBe(true)
+    expect(state).toEqual(original)
+    if (!added.ok) return
+
+    const removed = removeStop(added.value.tripState, PLACES, candidates.value[0].id)
+    expect(removed.ok).toBe(true)
+
+    const currentId = state.days[0].stops[0].placeId
+    const swapped = swapStop(state, PLACES, {
+      placeId: currentId,
+      replacementPlaceId: candidates.value[1].id,
+    })
+    expect(swapped.ok).toBe(true)
+    if (!swapped.ok) return
+
+    const reordered = reorderStop(swapped.value.tripState, PLACES, {
+      placeId: candidates.value[1].id,
+      toIndex: 1,
+    })
+    expect(reordered.ok).toBe(true)
+    if (!reordered.ok) return
+    expect(reordered.value.tripState.days[0].stops.map((stop) => stop.slot)).toEqual(
+      swapped.value.tripState.days[0].stops.map((stop) => stop.slot),
+    )
+  })
+
+  it('rejects duplicates and hallucinated ids with structured errors', () => {
+    const state = stateFixture()
+    const existingId = state.days[0].stops[0].placeId
+
+    expect(addStop(state, PLACES, { placeId: existingId, day: 2 })).toMatchObject({
+      ok: false,
+      error: { code: 'DUPLICATE_STOP' },
+    })
+    expect(addStop(state, PLACES, { placeId: 'invented-id', day: 1 })).toMatchObject({
+      ok: false,
+      error: { code: 'PLACE_NOT_FOUND' },
+    })
+  })
+
+  it('can lighten a day or move its lowest-value sight to another day', () => {
+    const state = stateFixture()
+    const lighter = rebalanceDay(state, PLACES, { day: 1, direction: 'lighter' })
+    const moved = rebalanceDay(state, PLACES, {
+      day: 1,
+      direction: 'lighter',
+      targetDay: 3,
+    })
+
+    expect(lighter.ok).toBe(true)
+    expect(moved.ok).toBe(true)
+    if (!lighter.ok || !moved.ok) return
+    expect(lighter.value.tripState.days[0].stops).toHaveLength(state.days[0].stops.length - 1)
+    expect(moved.value.tripState.days[2].stops).toHaveLength(state.days[2].stops.length + 1)
+  })
+})

@@ -1,5 +1,5 @@
 import { useState, type DragEvent } from 'react'
-import type { DragRef } from './parts'
+import type { DragRef } from '../shared/parts'
 
 export function useDragReorder(
   onReorderStops: (dayIndex: number, fromIndex: number, toIndex: number) => void,
