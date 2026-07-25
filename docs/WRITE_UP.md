@@ -1,177 +1,141 @@
 # 3 Days in Italy — submission note
 
-> **Draft.** Structure and architecture claims are accurate to the shipped code as of
-> 2026-07-24. Placeholders marked `«…»` need your input. Target: 1–2 pages — cut before you add.
->
-> Raw material worth lifting: `thoughts.md` (process notes on normalization, the Brera coordinate
-> bug, the Venice driving-routes decision) and `docs/legacy/write-up-v1.md` (the data-messiness
-> section, which is still the strongest prose in the earlier draft).
+**Live:** [https://trip-planner-bronson.vercel.app](https://trip-planner-bronson.vercel.app) · **Repo:** [https://github.com/bronson-allen/trip-planner](https://github.com/bronson-allen/trip-planner)
+React 19 · TypeScript · Vite · Mapbox GL · Vercel Functions · OpenAI `gpt-4.1` · Vitest unit tests
 
-**Live app:** https://trip-planner-bronson.vercel.app · **Repo:** https://github.com/bronson-allen/trip-planner
+## What I built
 
-**Deployment.** I tried Stripe Projects first to provision Vercel from the Stripe CLI — a natural fit
-for a Stripe take-home, and cleaner than juggling provider dashboards by hand. Account ownership
-and Projects setup blocked that path, so I fell back to the Vercel CLI / Git integration: same
-hosting target, less ceremony. Env vars (`OPENAI_API_KEY`, `MAPBOX_API_KEY`, `APP_ORIGIN`) live in
-Vercel, not the repo. The production `/api/assistant` entry is an esbuild bundle of
-`server/assistant.ts` — Vite's local middleware and Vercel's function runtime are not the same
-compiler, so the shared engine is bundled into a committed `api/assistant.js` rather than
-shipped as a graph of `.ts` imports.
+A smart 3 day trip planner. You pick a base city, a start date, and a few preference chips, and a deterministic engine builds a 3-day itinerary. The chips become a `TripPrefs` object, `rankPlaces` scores all 103 places in `italy.json` against it, and `buildItinerary` schedules the winners into three days with a real rhythm — morning sight, lunch, afternoon, evening, dinner — clustered geographically so you're not crossing town between courses, or driving from Milan to Rome for lunch. Then you refine it, either by hand through the UI or in natural language through **Navi**, an AI powered assistant that can only act through the same deterministic functions the buttons call, as tool calls.
 
----
+## Scoping it down: Why one city, three days?
 
-## What I built and why
+The dataset's density is lopsided. Rome, Florence, Venice and Milan hold most of the 103 entries and the
+rest are 1–9 places in day-trip towns. If I just took the nine highest-rated places in the country I'd
+be sending someone Rome → Venice → Florence in 72 hours, which is a worse trip than any one of those
+cities alone. So the scheduler anchors on a base city and clusters each day around it.
 
-A trip planner over the provided 103-place dataset. You pick a base city, a start date, and a few
-preference chips; a deterministic engine builds a 3-day itinerary; then you refine it — by hand
-through the UI, or in natural language through an assistant that can only act through the same
-functions the UI buttons call.
+That turned out to be load-bearing. Travel time is a haversine distance and a walking speed, so an
+unguarded Rome→Venice leg computes as about **90 hours on foot** and renders on a card as a
+straight-faced number. The engine has no concept of intercity transit and the dataset gives me nothing
+to build one from. I'd rather ship a planner that's clear about what it won't do than one that hands you
+an impossible day and sounds confident about it. Pace follows the same logic: relaxed drops the evening
+stop, packed adds an afternoon one, and lunch and dinner never move, because "relaxed" should mean fewer
+things, not no lunch.
 
-**The core judgment call was scope, not features.** The dataset's density is concentrated: Rome,
-Florence, Venice and Milan hold most of the 103 places, and everything else is 1–9 entries for
-day-trip towns. A planner that picks the nine highest-rated places nationwide sends someone on
-impossible cross-country hops. So the scheduler anchors on one base city and geo-clusters each day
-around it, rather than pretending to be a general multi-city router. Days follow a real rhythm —
-morning sight, lunch, afternoon, evening, dinner — with pace controlling how densely sights pack
-between the fixed meals.
+## Some things that tripped me up along the way
 
-**One city per trip — and what happens when you want another.** That constraint is load-bearing,
-not cosmetic: travel time is a walking estimate, so an unguarded Rome→Venice leg computes as about
-90 hours on foot and lands on a card as a straight-faced number. The engine has no concept of
-intercity transit, and the dataset has no data for one. Rather than let the planner produce
-confidently infeasible schedules, the city gate stays.
+Both of these came from using the app and asking why.
 
-What I did fix was the seam around it. Explore browses all 103 places — seeing the whole catalog is
-the point of that surface — but it used to offer an "Add" button on every row and only fail *after*
-the click, because the engine rejected the place. It now runs the same eligibility gate the engine
-does, so it can only offer adds that will succeed, and everything else moves to a browse-only
-"Elsewhere in Italy" section. Out-of-city places get a "Plan Venice" button that starts a fresh
-trip anchored there instead of a dead end. Tests assert the two surfaces agree, so they can't drift.
+**Two sources of truth.** My first design held the user's preferences and regenerated the itinerary from them. Then I walked a scenario out loud: I delete the Colosseum by hand, and the next day I ask Navi to make day 2 lighter. That regeneration puts the Colosseum back in, because the prefs have no idea I removed it. Every AI edit would unknowingly overwrite a manual one. The fix was to make the itinerary the only state, ids and slots with no resolved objects, and have the buttons and the assistant both mutate it through the same pure `TripState → TripState` functions. Walking times, dates and day themes derive on render, so nothing goes stale and there's no second copy to drift. That change is the only reason manual and AI editing coexist, and I'm glad I found it on a in development instead of in a bug report.
 
-Auditing that gate turned up a real edge I hadn't planned for: **three places sit inside my own
-reachability radius but are still rejected.** Burano is 8km from Venice, Padua 36km, Como 39km —
-all within the 40km radius the scheduler already uses to mean "reachable on this trip" — but the
-city check runs first, so a city-name comparison overrules the geography. On travel merit these
-are real day trips; Burano is a classic Venice vaporetto run.
+**Browse said yes, the engine said no.** The Explore search listed all 103 places with an Add button on every row, but `addStop` rejects anything outside the base city, so you'd pick a place, pick a day, then get an error toast. My instinct was that the one-city rule was too strict. It wasn't, for the 90-hours reason above. The bug was the seam, not the constraint, so Explore now runs the engine's own eligibility check and tests assert the two surfaces agree. Auditing that turned up something I hadn't planned for: Burano (8 km), Padua and Como sit inside the scheduler's own 40 km radius but get rejected anyway, because the city-name check runs before the distance check. Those are real day trips. I left them blocked, since Venice→Burano computes as a two-hour walk across a lagoon, but I stopped flattening the explanation. They read "Day trip" now, and the detail pane says the round trip would eat most of one of three days. An unexplained limit looks like an oversight. A stated one looks like a decision.
 
-I left them blocked, deliberately. Travel time here is a walking estimate, so Venice→Burano would
-compute as a two-hour walk across a lagoon you can't walk, and Venice→Padua as roughly eight.
-Opening the gate without a transit model reproduces the exact failure the gate exists to prevent,
-just at 8km instead of 400. What I did instead was stop flattening them: those rows now read
-**"Day trip"** rather than the same "Not in this trip" as somewhere 116km away, and the detail
-pane says plainly that the round trip would cost most of one of only three days — left off for
-that reason, not because it isn't worth seeing. The constraint is the same; the user can now tell
-which kind of "no" they're getting.
+## The data is messy on purpose, so I normalized instead of cleaning
 
-The honest multi-city version needs day-level city anchoring plus a transit model — worth building,
-not worth half-building. It's in "more time" below.
+`italy.json` never gets mutated. A one-way `normalize()` builds a typed parallel view and attributes
+every gap it fills instead of hiding it. Hours carry `confidence: 'parsed' | 'partial' | 'unknown'`,
+inferred durations are flagged as inferred, and hours I can't parse reach the card as "check ahead"
+rather than an invented time. That drew my line on enrichment too: adding images the dataset doesn't
+have is fair, using an outside source to *correct* facts the file states is not.
 
-**The messy data is the actual test, so I normalized rather than cleaned.** `italy.json` is never
-mutated. A one-way `normalize()` pass produces a parallel typed view, and every gap it fills is
-*attributed* rather than hidden: hours carry `confidence: 'parsed' | 'partial' | 'unknown'`,
-inferred durations carry `duration.inferred: true`, and unparseable hours reach the card as an
-honest "check ahead" note instead of an invented time. Tests iterate the real 103-place file, not
-fixtures — which is how they caught a genuine bug in my own hours parser on the first run: an
-overnight window (`8:00-01:00`) that the regex read as closing before it opened.
+The tags needed real modeling. There are about 30 and some look contradictory — quiet vs lively,
+hidden-gem vs tourist-heavy, budget vs splurge. They aren't contradictions, they're opposite ends of
+roughly five axes, so I mapped them that way and gave the scorer signed values to read. Navi never sees
+raw tags, only resolved scalars, because a bag of contradictory adjectives is what a model misreads.
 
-There is also a load-time `auditPlaces()` pass that logs what the dataset actually contains:
-durations exceeding their own opening window, `booking_required` entries with null hours, rating
-outliers, seasonal closures, and geographic outliers. That last category found a planted
-coordinate error — Brera Antique Market is tagged Milan but sits 156 km away, which had produced a
-"7-hour walk" as the first stop of a Milan trip. «Keep or cut depending on length — this is a
-strong concrete detail.»
+Tests iterate the real file rather than fixtures, and the first run caught a bug in my own hours parser:
+an overnight window (`8:00-01:00`) my regex read as closing before it opened. Win for the tests. A
+startup `auditPlaces()` pass reports what's actually in there, and its geographic check caught a planted
+coordinate error: Brera Antique Market says Milan but sits 156 km away, which had put a seven-hour walk
+as the first stop of a Milan trip. I fixed that structurally instead of overwriting a stated fact. Each
+city's center is a median, robust to its own outliers, and candidates past a sane radius get dropped.
+Where parsing stops being reliable, so do I — seasonal closures are gated on real closure wording ("open
+April–October **only**" closes a place, "**best** April–October" doesn't), and a rule like "third Sunday
+of the month" gets surfaced for the traveler instead of faked.
 
-## Architecture — the LLM is never in the constraint path
+## How I used AI: both, with a hard line between them
+
+**As a product feature.** My test was: if I removed this call, would the product be worse at its job, or
+just less impressive to describe? That rules out most itinerary edits. Adding a named place, deleting a
+stop, reordering a day are one unambiguous action each, and a button beats a sentence.
+
+It earns the call on requests a button structurally can't express: *"swap the museum for something
+outdoorsy near the coast, and make day 2 lighter."* That's search, then decide, then act, twice, across
+two days. You can't pre-build that as controls. Tool-calling handles it in one path, and it answers
+read-only questions the UI has no surface for, like *"why is this stop before lunch?"*
 
 ```
  UI buttons ─┐
-             ├─► pure tool functions (TripState → TripState) ─► TripState (one source of truth)
+             ├─► pure tool functions (TripState → TripState) ─► TripState
  Navi chat ──┘     searchPlaces · explainStop · nearbyPlaces · addStop
                    removeStop · swapStop · reorderStop · rebalanceDay
 ```
 
-The itinerary is one small serializable object — `{ city, startDate, prefs, days: [{ placeId,
-slot }] }` — that is simultaneously the client state, the sessionStorage format, and the API wire
-format. Ids only; everything rendered (travel times, dates, day themes) is derived on every
-render, so it can't go stale.
+That one `TripState` object is also the sessionStorage format and the API wire format, so there's a
+single shape to reason about end to end. **Delete the chat box and every edit still works, offline, with
+no network call.**
 
-Both the buttons and the assistant mutate it through the *same* pure tool functions. That's what
-makes the AI load-bearing rather than decorative: **delete the chat box and every edit still
-works, offline, with no network call.** The assistant is strictly additive.
+Safety is structural, not prompted. The model never types a place id from memory. It gets candidates
+from `searchPlaces` and passes those exact ids to `addStop`/`swapStop`, which re-validate against the
+dataset before mutating. Every write tool enforces the same invariants `buildItinerary` does and returns
+structured errors instead of throwing, so the model recovers rather than crashing the loop. The loop is
+capped, and `removeStop` is withheld unless the instruction actually asks to remove something — the
+prompt says so too, but the gate is in code. Context is bounded the same way: the last three exchanges,
+capped again server-side, with the current itinerary riding along and winning if an older reply
+disagrees. No session store. Plus the expected hygiene — server-side key, zod validation, an instruction
+cap, per-IP rate limiting, CORS, structured per-request logging.
 
-The safety model is structural, not prompt-based. The model never types a place id from memory —
-it gets candidate ids only from `searchPlaces` output and passes those exact ids to
-`swapStop`/`addStop`, which re-validate against the dataset before mutating. Every write tool
-enforces the same invariants `buildItinerary` does: the place is real, in the base city, within
-the city radius, open on the trip dates, not already scheduled. Violations return structured
-errors rather than throwing, so the model can recover instead of the loop crashing. The tool loop
-is capped at five steps plus one tool-free step for the final answer. `removeStop` is excluded from
-the active tool list unless the instruction matches a server-side regex for remove / delete / drop /
-take out — so a failed swap or preference tweak can't quietly delete stops; the system prompt says
-the same thing, but the gate is enforced in code.
+Two things I skipped deliberately. I never let the LLM build the itinerary from raw JSON, because it
+hallucinates places, ignores hours, and this dataset's messiness makes both worse. And no embeddings.
+103 structured records don't need a vector store, and in-memory filtering is correct at that size, not a
+compromise. I'd reconsider past ~10k.
 
-Around that: key server-side only, zod validation on the request body, every incoming itinerary
-state re-validated against the dataset, a 500-character instruction cap, per-IP rate limiting,
-CORS restricted to the app's own origin, and structured per-request logging with request id,
-model, latency, token usage, tool calls made, and outcome.
+**As a building tool.** Throughout, for architecture discussion and TDD on the normalize/score/schedule
+pipeline. The part worth reporting is a failure. My first assistant build failed three tests: invalid
+JSON, a compound request that burned the whole tool loop doing nothing, and one that leaked raw
+function-call syntax into the chat. I'd already stacked four fixes on it, and the pile was the tell —
+nearly all were prompt-space patches in a system whose entire thesis is structural safety. So I stopped
+patching and had the code diagnosed properly: the tool layer was fine, the failure was concentrated in
+orchestration. My own plan had written the escape hatch, swap models if tool selection underperforms, so
+I took it, changed that one variable, held everything else constant, and deleted the patches based on
+what the re-test showed instead of what I predicted. One survived on merit, the `removeStop` gate,
+because it's enforced in code rather than asked for in a prompt.
 
-## How I used AI
+## Shipping it
 
-**Both — as a building tool and as a product feature — with a deliberate boundary between them.**
-
-As a building tool: «your workflow — Claude Code for architecture discussion, TDD on the
-normalize/score/schedule pipeline, the data audit pass. One or two sentences.»
-
-As a product feature, the test I applied was: *if I removed this call, would the product be worse
-at its job, or just less impressive to describe?* That test rules out most itinerary edits.
-Adding a named place, deleting a stop, reordering a day — those are one unambiguous action each,
-and a button is faster and more reliable than a sentence. Building AI into that path would be
-novelty.
-
-Where it earns its call is the class of request a button structurally cannot express: *"swap the
-museum for something outdoorsy near the coast, and make day 2 lighter."* That's search, then
-decide, then act, twice, across two days — combinatorially impossible to pre-build as UI controls.
-Tool-calling handles it in one path: the model picks a tool, the tool returns real data, the model
-reacts. It also handles read-only questions the UI has no surface for at all — *"why is this stop
-before lunch?"* — which mutate nothing.
-
-I deliberately do **not** surface the raw `toolCalls` array in the chat UI, even though the API
-returns it. After *"make day 2 lighter,"* the reply already says what changed — *"I've moved
-Palatine Hill from Day 2 to Day 1…"* — and the itinerary updates beside it. A "searched → swapped
-→ rebalanced" trail would prove the architecture to a reviewer skimming the live URL, but it
-wouldn't help a traveler, and the code plus this note already carry that proof. The product
-surface stays the summary; the tool layer stays in the network tab and the repo.
-
-**Multi-turn chat is real, not cosmetic.** Navi keeps the full transcript in the panel, but
-only the last **three back-and-forths** — six messages, up to three user and three assistant —
-are sent with each new request; your latest message goes separately as `instruction`. The model
-sees that sliding window as `messages`, not just the newest sentence. Older turns stay visible in
-the UI but drop out of model context, so a fourth exchange ago won't resolve "that one" or
-"undo that." The current `tripState` is still sent every time and the system prompt treats the
-itinerary as authoritative if an older reply disagrees with the schedule. There is no server-side
-session store — bounded client-sent history is enough for follow-ups like "do that for day 3"
-without pretending to remember a whole trip-planning session.
-
-I deliberately did **not** let the LLM generate the itinerary from the raw JSON. At this scale
-that's the tempting shortcut and the wrong one: it hallucinates places, ignores opening hours, and
-produces infeasible schedules — and the messiness of this particular dataset makes all three
-worse. I also skipped embeddings/RAG entirely; 103 structured records don't need a vector store,
-and in-memory filtering isn't just sufficient, it's the correct choice at this size. I'd
-reconsider past ~10k records.
+Deploy is where the real bugs were. Vercel's function runtime isn't Vite's compiler, so cross-folder
+`.ts` imports into `src/` worked locally and broke in production. The source lives in
+`server/assistant.ts` now and esbuild emits a self-contained `api/assistant.js`. Then zero-config
+detects `/api` *before* `npm run build` runs, so a gitignored bundle registers too late and
+`/api/assistant` 404s while the static build is perfectly green. That's why the bundle is committed. I
+also caught the Mapbox `pk.` token baked into 42 image URLs in committed data — those are stored
+unsigned now and signed at read time, with a test that fails if a token reappears. React + Vite over
+Next was deliberate: no server-rendering story here worth a framework, so it's one client bundle and one
+function endpoint. I tried Stripe Projects first for provisioning and fell back to Vercel CLI + Git.
 
 ## What I'd do with more time
 
-- **Multi-city trips.** The real design is day-level city anchoring (`days: [{ day, city, stops }]`)
-  plus an intercity transit model — a rail-duration matrix between city pairs, since the dataset
-  has none — so `estimateTravel` returns a transit leg instead of refusing to walk 400 km. That
-  touches every tool signature, the scheduler, and the day timeline. For three days the
-  single-city anchor is still the right answer; it's a longer trip that needs this.
-- **Driving routes.** Walking-only is deliberate — Venice isn't drivable, and within a single base
-  city most stops are walkable — but a multi-city version would need driving legs.
-- **An eval set for the assistant.** Correctness is currently enforced structurally by the tools
-  and verified by hand. A labeled set of instructions → expected tool calls would catch prompt
-  regressions the way the 78 unit tests catch engine regressions.
-- **Ordinal date rules.** A few entries close on rules like "third Sunday of the month." I parse
-  day-of-week and month windows but deliberately don't attempt ordinal-in-month parsing, and say
-  so on the affected cards rather than guessing.
-- «Anything else you want to claim — keep this list short and specific.»
+These are things I wanted and cut, not a wishlist.
+
+- **Multi-city trips.** Day-level city anchoring plus an intercity transit model — a rail-duration
+matrix, since the dataset has none — so `estimateTravel` returns a transit leg instead of refusing to
+walk 400 km. It touches every tool signature, the scheduler and the day timeline. Worth building, not
+worth half-building on a deadline. Driving comes with it. I dropped driving once Venice made it obvious
+a canal city and sub-km hops don't want a car, and that simplification removed code *and* improved
+correctness, which is why it stuck.
+- **Offline and bad signal.** The person using this is standing in Italy on hotel wifi or roaming data.
+I'd cache the itinerary for offline reads, precompute what the map needs, and put assets on an edge
+CDN. Everything except Navi already runs client-side with no network call, so this is closer than it
+sounds. I just couldn't prove it on a throttled connection in the time I had.
+- **Shared trips.** Two people planning one trip is the real use case, and it's a real backend project:
+persistence, identity, conflict resolution on a shared `TripState`. Cut on purpose — nothing asked for
+it and the core loop was worth more than half of this.
+- **An eval harness for Navi.** Labeled instructions → expected tool calls, catching prompt regressions
+the way the 89 unit tests catch engine regressions. Biggest real gap.
+- **An error boundary around the dashboard.** Navi replaces trip state wholesale from a server response,
+so a render throw after a swap is a white screen. Known, tracked, not done.
+- **Polish I cut knowingly.** Auth and saved trips. A Stripe-powered pro tier, which I wanted to build
+and skipped as scope. And a loading screen with a vespa and a rotating "Rome wasn't built in a day, but
+your itinerary was." That one costs an afternoon and it's a lot of the distance between a demo and a
+product, so it's the first thing I'd add back.
+

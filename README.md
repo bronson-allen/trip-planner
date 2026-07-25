@@ -6,7 +6,7 @@ itinerary from the 103-place dataset in `src/data/italy.json`. Refine it by hand
 
 React 19 · TypeScript · Vite · Mapbox GL · Vercel Functions · OpenAI `gpt-4.1`
 
-**Live demo:** _add URL_
+**Live demo:** https://trip-planner-bronson.vercel.app
 
 ---
 
@@ -34,7 +34,7 @@ manual edit run client-side with no network call.
 ```bash
 npm run dev       # frontend + assistant API
 npm run build     # typecheck + production build
-npm test          # 88 unit tests
+npm test          # unit tests (vitest)
 npm run lint      # oxlint
 ```
 
@@ -100,7 +100,7 @@ and structured per-request logging.
 **Data** — `italy.json` is never mutated. A one-way `normalize()` pass parses ~8 hours formats
 (including overnight windows), defaults missing durations, and canonicalizes tags — attributing
 every inference rather than hiding it, so unparseable hours reach the card as "check ahead"
-instead of an invented time. A `auditPlaces()` pass logs data-quality findings at startup in dev.
+instead of an invented time. An `auditPlaces()` pass logs data-quality findings at startup in dev.
 
 ---
 

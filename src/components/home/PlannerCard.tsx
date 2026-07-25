@@ -24,7 +24,7 @@ const INTERESTS = [
 const PACES = ['Relaxed', 'Balanced', 'Packed'] as const
 const BUDGETS = ['€', '€€', '€€€', '€€€€'] as const
 const BUILD_MS = 1500
-const BUILDING_COPY = "Rome wasn't built in a day, but your trip to Italy was!"
+const BUILDING_COPY = "Rome wasn't built in a day, but your itinerary was!"
 
 type PlannerCardProps = {
   open: boolean
