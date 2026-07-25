@@ -7,6 +7,19 @@ itinerary from the 103-place dataset in `src/data/italy.json`. Refine it by hand
 React 19 · TypeScript · Vite · Mapbox GL · Vercel Functions · OpenAI `gpt-4.1`
 
 **Live demo:** https://trip-planner-bronson.vercel.app
+· **Submission note:** [`docs/WRITE_UP.md`](docs/WRITE_UP.md)
+
+---
+
+## Screenshots
+
+![Landing page](docs/screenshots/home.jpg)
+
+![Planner form](docs/screenshots/planner.jpg)
+
+![Map view with Navi](docs/screenshots/map.jpg)
+
+![List view and Explore](docs/screenshots/list.jpg)
 
 ---
 
@@ -20,7 +33,7 @@ npm run dev
 
 | Variable | Purpose |
 |---|---|
-| `MAPBOX_API_KEY` | Map tiles, walking routes, place thumbnails. **Public `pk.` token** — it reaches the browser, but it is never committed: `placeImages.json` stores Mapbox URLs unsigned and `placeImageUrl()` signs them at read time. |
+| `MAPBOX_API_KEY` | Map tiles, walking routes, place thumbnails. **Public `pk.` token** — it reaches the browser, but it is never committed: `placeImages.json` stores Mapbox URLs unsigned and `placeImageUrl()` in `src/data/places.ts` signs them at read time. |
 | `OPENAI_API_KEY` | The Navi assistant. Server-side only, never bundled into the client. |
 | `APP_ORIGIN` | CORS allowlist. Optional locally. Set to the deployed origin in production. |
 
@@ -32,10 +45,11 @@ client-side with no network call.
 ### Scripts
 
 ```bash
-npm run dev       # frontend + assistant API
-npm run build     # typecheck + production build
-npm test          # unit tests (vitest)
-npm run lint      # oxlint
+npm run dev         # frontend + assistant API (Vite middleware)
+npm run build       # typecheck + production build + bundle:api
+npm run bundle:api  # esbuild server/assistant.ts → api/assistant.js
+npm test            # unit tests (vitest)
+npm run lint        # oxlint
 ```
 
 ---
@@ -55,8 +69,8 @@ day.
 **Day at a glance** — the selected day laid out on a wall clock, so an over- or under-packed day
 is visible at a glance.
 
-**Explore** — browse the full dataset, search by name, neighborhood, type or tag, filter by price,
-and add anything to a specific day.
+**Explore** — browse places eligible for the current trip, search by name, neighborhood, type or
+tag, filter by price, and add anything to a specific day. Out-of-city rows are browse-only.
 
 **Edit** — drag to reorder, remove stops, add from Explore. Travel estimates and day themes
 recompute immediately.
@@ -111,7 +125,12 @@ server/assistant.ts      Source for the tool-calling loop (bundled to api/assist
 api/assistant.js         Committed esbuild bundle — Vercel detects `/api` before build runs
 src/
   config/mapbox.ts       the only client-side read of the public Mapbox token
-  data/                  italy.json (source of truth), normalized places, trip plan
+  data/
+    italy.json           source of truth (immutable)
+    placeImages.json     unsigned Mapbox / Wikipedia image URLs
+    places.ts            normalize + placeImageUrl()
+    tripPlan.ts          TripPlan defaults / types
+    cities.ts            plannable base cities
   lib/
     places/              the dataset and what it means
       normalize.ts       raw → attributed typed view
@@ -140,9 +159,16 @@ src/
       assistant/         Navi
   pages/                 HomePage · DashboardPage
 tests/                   unit tests, mirroring lib/ (places · trip · geo)
+docs/
+  WRITE_UP.md            submission note
+  assessment.md          assignment brief
+  screenshots/           README images
+scripts/                 one-off data helpers (e.g. fetch-place-images)
 ```
 
 ## Deployment
 
 Deploys to Vercel as-is: `vercel.json` rewrites everything except `/api/` to `index.html`. Set
-`OPENAI_API_KEY`, `MAPBOX_API_KEY` and `APP_ORIGIN` in the project environment.
+`OPENAI_API_KEY`, `MAPBOX_API_KEY` and `APP_ORIGIN` in the project environment. The assistant
+bundle is regenerated on every `npm run build` via `bundle:api` and must stay committed so Vercel
+can detect `/api` before the build runs.

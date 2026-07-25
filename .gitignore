@@ -30,10 +30,16 @@ dist-ssr
 # Personal scratch notes — not part of the repo
 thoughts.md
 
-# Private working docs — only the assessment brief and submission write-up are public
+# Private working docs — assessment, write-up, and README screenshots are public
 docs/*
 !docs/assessment.md
 !docs/WRITE_UP.md
+!docs/screenshots/
+!docs/screenshots/**
+
+# Local capture artifacts — keep out of the repo
+Screenshot*.png
+*.mov
 
 # Vercel local link metadata
 .vercel
