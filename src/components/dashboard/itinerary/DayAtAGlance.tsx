@@ -208,8 +208,6 @@ export default function DayAtAGlance({
           ),
         )}
       </ol>
-
-      <p className="glance__hint">Hover a block to pulse its pin · click to open it on the map</p>
     </Panel>
   )
 }

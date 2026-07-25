@@ -85,8 +85,8 @@ function longestWindowMinutes(place: NormalizedPlace): number | null {
 }
 
 /**
- * Read-only audit over raw + normalized places. Surfaces the planted gotchas from
- * plan_proposal.md without mutating italy.json or "correcting" source values.
+ * Read-only audit over raw + normalized places. Surfaces dataset gotchas without mutating
+ * italy.json or "correcting" source values.
  */
 export function auditPlaces(
   raw: readonly RawPlace[] = rawItaly,
@@ -197,7 +197,7 @@ export function auditPlaces(
   }
 }
 
-/** Dev-friendly console summary for the walkthrough / debugging. */
+/** Dev-only console summary. */
 export function logDataAudit(report: DataAuditReport) {
   const grouped = new Map<DataAuditFinding['category'], DataAuditFinding[]>()
   for (const finding of report.findings) {

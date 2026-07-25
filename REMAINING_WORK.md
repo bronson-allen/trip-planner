@@ -51,14 +51,19 @@ commit `83faf3b` on `origin/ai-assistant-integration`. Only the merge to `main` 
 Live URL: https://trip-planner-bronson.vercel.app. GitHub is connected to the Vercel project.
 
 Tried Stripe Projects first; blocked by account ownership/setup, so deployed via Vercel CLI + Git
-instead. First production deploy proved the predicted failure mode: Vercel's function runtime did
-not resolve cross-folder `.ts` imports into `src/`. Source lives in `server/assistant.ts`;
-`npm run bundle:api` (esbuild) emits `api/assistant.js` during build so the only file under `api/`
-is a self-contained bundle (keeping a `.ts` next to it let Vercel overwrite the bundle with a
-shallow transpile).
+instead. Two production failure modes, both fixed:
+
+1. Vercel's function runtime does not resolve cross-folder `.ts` imports into `src/` (NodeNext
+   errors on extensionless imports, JSON attributes, missing `GeoJSON`). Source lives in
+   `server/assistant.ts`; `npm run bundle:api` (esbuild) emits a self-contained
+   `api/assistant.js`. Keeping a `.ts` next to the bundle let Vercel overwrite it with a shallow
+   transpile — so the source is not under `api/`.
+2. Zero-config detects `/api` functions *before* `npm run build`. A gitignored bundle is created
+   too late and never registered, so `/api/assistant` 404s even when the static build is green.
+   The bundle is therefore committed (still regenerated on every build).
 
 - [x] Deploy to Vercel (Stripe Projects blocked → Vercel CLI / Git)
-- [ ] Verify `/api/assistant` responds on the deployed URL after the server/ bundle fix lands
+- [x] Verify `/api/assistant` responds on the deployed URL after the server/ bundle fix lands
 - [x] Set `OPENAI_API_KEY` and `MAPBOX_API_KEY` in Vercel env
 - [x] Set `APP_ORIGIN` to `https://trip-planner-bronson.vercel.app`
 
@@ -139,32 +144,38 @@ itself.
 
 ## Polish, ranked by demo value
 
-- [ ] **Surface `toolCalls` in the UI.** The API already returns them;
-      [`NaviAssistant.tsx:70`](src/components/dashboard/assistant/NaviAssistant.tsx:70) discards them. A
-      one-line *"Searched places → swapped stop → rebalanced day 2"* under the message is the
-      single clearest proof this is a tool layer and not a chatbot wrapper.
-- [ ] **Give Navi conversation history.** Each response currently replaces the last, so a reviewer
-      asking a second question loses the first. An array of messages is a small change with
-      outsized perceived quality.
-- [ ] **Fix slot collision after moves.** Reproduced live: `rebalanceDay` moved a market to day 3,
-      `addStop` assigned it `inferredSlot()` → `morning`, so day 3 renders two consecutive cards
-      both labelled "Morning" ([`tools.ts:286`](src/lib/trip/tools.ts:286)).
-- [ ] **Tighten the `searchPlaces` schema.** The model sent `"type": ""` alongside `types` during
-      testing. Either `z.string().min(1)` at
-      [`api/assistant.ts:359`](api/assistant.ts:359) or drop `type`, since `types` subsumes it.
-- [ ] **Make Navi reachable from both views.** Navi renders only in map view and Explore only in
-      list view ([`DashboardPage.tsx:202`](src/pages/DashboardPage.tsx:202)); a reviewer who lands
-      in list view cannot find the assistant at all.
-- [ ] **Dead "Profile" nav item** in [`Sidebar.tsx:10`](src/components/dashboard/shell/Sidebar.tsx:10) —
-      it renders but `DashboardPage` only handles `map` and `list`, so clicking it does nothing.
-- [ ] **Stale doc comments in the engine**, all describing the abandoned intent-parse design:
-      [`score.ts:5`](src/lib/places/score.ts:5) ("The LLM intent-parse call fills the same shape from
-      free text") and [`planPrefs.ts:7`](src/lib/trip/planPrefs.ts:7) ("Later, the LLM intent-parse call
-      will produce the same `TripPrefs` shape"). Cheap to fix, and a reviewer reading the engine
-      will see them.
-- [ ] **Document the `removeStop` regex gate.** [`api/assistant.ts:280`](api/assistant.ts:280)
-      withholds the destructive tool unless the instruction literally says remove/delete/drop.
-      Deliberate and smart — worth one sentence in the write-up so it reads as designed.
+- [x] ~~**Surface `toolCalls` in the UI.**~~ Decided against 2026-07-24. The API already returns
+      them and the UI discards them on purpose. Navi's reply already narrates the mutation in
+      plain language ("I've moved Palatine Hill from Day 2 to Day 1…"); a mechanical tool trail
+      would mostly repeat that for reviewers, not help travelers. Covered as a judgment call in
+      `WRITE_UP.md`.
+- [x] ~~**Give Navi conversation history.**~~ Done 2026-07-24. Client keeps a transcript and
+      sends the last six messages (three turns) with each request; the API passes them to
+      `generateText` as `messages`, with the current itinerary authoritative if chat and schedule
+      disagree. Panel polish ships with it: condensed header and hidden pills once chatting,
+      scrollable thread, and an honest "Navi is thinking…" pending state (no fake stream of
+      thought).
+- [x] ~~**Fix slot collision after moves.**~~ Done 2026-07-24. `addStop` now runs
+      `resolveSlotForDay()` so a preferred or inferred slot that is already taken on that day
+      falls through to the next open sight slot (afternoon is the only intentional duplicate, for
+      packed pace). `rebalanceDay` passes the moved stop's existing slot through so cross-day
+      moves keep their rhythm when possible.
+- [x] ~~**Tighten the `searchPlaces` schema.**~~ Done 2026-07-24. Dropped the redundant `type`
+      field from the tool schema and `SearchPlacesArgs` — `types` already covers single- and
+      multi-type filters — and required non-empty strings in `tags` and `types` arrays so the
+      model can't send `""` alongside a populated `types` list.
+- [x] ~~**Dead "Profile" nav item**~~ Done 2026-07-24. Removed the non-functional Profile
+      button from the sidebar; only Map and List remain. Nav polish: larger icon targets
+      (2.85rem) and tighter corners (0.45rem radius) so the active fill reads more clearly.
+- [x] ~~**Stale doc comments in the engine**~~ Done 2026-07-24. Removed abandoned intent-parse
+      references from `score.ts` and `planPrefs.ts`, dropped `plan_proposal.md` citations from
+      `normalize.ts` and `audit.ts`, and tightened a few overstated "walkthrough"/LLM-prefs
+      comments while reviewing the tree for stray logs and commented-out code (none found in
+      `src/` beyond intentional dev-only audit output and server observability logging).
+- [x] ~~**Document the `removeStop` regex gate.**~~ Done 2026-07-24. Already implemented in
+      `server/assistant.ts` — `removeStop` is omitted from `activeTools` unless the instruction
+      matches `/\b(remove|delete|drop|take out)\b/iu`. Documented in `WRITE_UP.md` under the
+      architecture safety section.
 
 ---
 
@@ -174,7 +185,6 @@ Goes in the write-up's "what I'd do with more time" section, not the code:
 
 - Multi-city trips with inter-city travel
 - Real driving routes (walking-only is a deliberate call — see `thoughts.md` on Venice)
-- Multi-turn memory / server-side conversation state for Navi
 - An eval harness for the assistant prompt
 - Auth, saved or shareable itineraries, multi-user editing
 - Code-splitting the 2.19 MB bundle (611 KB gzipped, mostly `mapbox-gl`)

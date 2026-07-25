@@ -81,14 +81,15 @@ async function handleAssistantRequest(
 export default defineConfig(({ mode }) => {
   // Make server-only secrets (OPENAI_API_KEY) available to the local API middleware.
   const env = loadEnv(mode, process.cwd(), '')
+  // File values win over stale shell env so token rotation in `.env` takes effect on restart.
   for (const [key, value] of Object.entries(env)) {
-    if (process.env[key] === undefined) process.env[key] = value
+    process.env[key] = value
   }
 
   return {
     plugins: [react(), assistantApiPlugin()],
-    // Expose MAPBOX_* so client code can read MAPBOX_API_KEY (public token only).
-    envPrefix: ['VITE_', 'MAPBOX_'],
+    // Only expose the public pk. token — not every MAPBOX_* var (e.g. sk. secrets).
+    envPrefix: ['VITE_', 'MAPBOX_API_KEY'],
     test: {
       include: ['tests/**/*.test.ts'],
     },

@@ -1,14 +1,10 @@
 import type { NormalizedPlace } from './normalize'
 import { authenticityScore, matchedPreferences } from './tags'
 
-/**
- * The structured preferences the scorer consumes. Chips fill `interests` / `budget` / `pace`
- * directly (zero AI). The LLM intent-parse call fills the same shape from free text — it
- * proposes preferences, it never picks places. Everything downstream is deterministic.
- */
 /** How densely to pack each day. Fewer stops = more relaxed. */
 export type Pace = 'relaxed' | 'balanced' | 'packed'
 
+/** Structured preferences the scorer consumes — from planner chips via `planToPrefs`. */
 export type TripPrefs = {
   interests: string[]
   /** Desired spend level; compared against each place's priceRange. */
@@ -22,7 +18,7 @@ export type TripPrefs = {
   pace?: Pace
 }
 
-/** Transparent per-signal contribution — surfaced in the UI and the walkthrough, not just summed. */
+/** Per-signal score contribution for explainStop and tests. */
 export type ScoreBreakdown = {
   total: number
   preference: number
@@ -56,9 +52,8 @@ const RATING_MIN = 2.0
 const RATING_MAX = 5.0
 
 /**
- * Pure ranking function: place + prefs -> score. No AI, no I/O, no randomness. This is what
- * actually decides the itinerary; the LLM only produces the `prefs` and later narrates the
- * result. Returns a breakdown so callers can explain the ranking (and tests can assert it).
+ * Pure ranking function: place + prefs -> score. No AI, no I/O, no randomness. Returns a
+ * breakdown so callers can explain the ranking (and tests can assert it).
  */
 export function scorePlace(place: NormalizedPlace, prefs: TripPrefs): ScoreBreakdown {
   const preference = matchedPreferences(place.tags, prefs.interests).length * WEIGHTS.preference

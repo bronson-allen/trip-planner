@@ -3,10 +3,8 @@ import type { Pace, TripPrefs } from '../places/score'
 import { tagMeta } from '../places/tags'
 
 /**
- * Adapter: the UI's form state (`TripPlan`) -> the engine's `TripPrefs`. This is the single
- * seam between the human-facing chips and the deterministic scorer. Later, the LLM intent-parse
- * call will produce the same `TripPrefs` shape from free text — so the engine never needs to
- * know whether a preference came from a chip or a sentence.
+ * Adapter: the UI's form state (`TripPlan`) -> the engine's `TripPrefs`. Single seam between
+ * planner chips and the deterministic scorer.
  */
 
 /** PlannerCard's interest chip labels -> canonical dataset tags. */

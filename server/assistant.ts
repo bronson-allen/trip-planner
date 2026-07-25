@@ -70,9 +70,15 @@ const tripStateSchema = z.object({
     .max(7),
 })
 
+const chatMessageSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string().min(1).max(2000),
+})
+
 const requestSchema = z.object({
   tripState: tripStateSchema,
   instruction: z.string().trim().min(1).max(500),
+  history: z.array(chatMessageSchema).max(6).optional(),
 })
 
 type ToolCallSummary = {
@@ -321,6 +327,10 @@ Answer only about this trip. Use tools for every factual claim about places, sco
 Never invent or type a place id. For a new place, call searchPlaces first and copy an id from its result.
 For a swap, search first, then call swapStop with a returned id.
 
+Prior messages in this thread are conversational context only. If they disagree with the current
+itinerary below, trust the itinerary — it reflects the latest state and may have changed since an
+earlier reply.
+
 Interpret weekday and date references from the calendar labels below. Break compound requests into independent
 parts and complete every safe part you can; one unavailable preference must not block unrelated changes.
 Make direct changes such as lighter/fuller days or reordering before searching for optional replacements.
@@ -345,16 +355,18 @@ Current itinerary in ${currentState.city}:
 ${itineraryContext(currentState)}
 
 ${datasetVocabulary(currentState)}`,
-      prompt: parsed.data.instruction,
+      messages: [
+        ...(parsed.data.history ?? []),
+        { role: 'user' as const, content: parsed.data.instruction },
+      ],
       tools: {
         searchPlaces: tool({
           description:
-            'Find eligible, unused places matching exact constraints. All tags are required (AND); types match any listed value (OR); type matches one exact value; used itinerary stops are excluded. Do not add constraints the traveler did not state. Check the itinerary context for an existing matching stop before searching. Always call before addStop or swapStop.',
+            'Find eligible, unused places matching exact constraints. All tags are required (AND); types match any listed value (OR); used itinerary stops are excluded. Do not add constraints the traveler did not state. Check the itinerary context for an existing matching stop before searching. Always call before addStop or swapStop.',
           inputSchema: z.object({
-            tags: z.array(z.string()).max(8).optional(),
+            tags: z.array(z.string().min(1)).max(8).optional(),
             maxPrice: z.number().int().min(1).max(4).optional(),
-            types: z.array(z.string()).min(1).max(8).optional(),
-            type: z.string().optional(),
+            types: z.array(z.string().min(1)).min(1).max(8).optional(),
             nearPlaceId: z.string().optional(),
             radiusKm: z.number().positive().max(20).optional(),
             limit: z.number().int().min(1).max(10).optional(),

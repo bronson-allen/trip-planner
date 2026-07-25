@@ -265,6 +265,70 @@ select.planner-input {
   transform: translateY(0);
 }
 
+.planner-building {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 2rem 0.5rem 1.25rem;
+  text-align: center;
+  min-height: 11rem;
+}
+
+.planner-building__copy {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  color: var(--ink);
+  animation: planner-building-fade 0.45s ease both;
+}
+
+.planner-building__status {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.planner-building__progress {
+  width: min(100%, 14rem);
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(91, 108, 255, 0.15);
+  overflow: hidden;
+}
+
+.planner-building__progress::after {
+  content: '';
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #5b6cff, #8b7cff);
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: planner-building-bar var(--build-ms, 1.5s) ease-in-out both;
+}
+
+@keyframes planner-building-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes planner-building-bar {
+  to {
+    transform: scaleX(1);
+  }
+}
+
 @keyframes planner-fade-in {
   from {
     opacity: 0;

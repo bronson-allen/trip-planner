@@ -125,4 +125,41 @@ describe('trip tools', () => {
     expect(lighter.value.tripState.days[0].stops).toHaveLength(state.days[0].stops.length - 1)
     expect(moved.value.tripState.days[2].stops).toHaveLength(state.days[2].stops.length + 1)
   })
+
+  it('resolves slot collisions when a day already has that label', () => {
+    const state = stateFixture()
+    const used = new Set(state.days.flatMap((day) => day.stops.map((stop) => stop.placeId)))
+    const candidate = PLACES.find(
+      (place) =>
+        place.city === state.city &&
+        !used.has(place.id) &&
+        !['restaurant', 'cafe'].includes(place.type),
+    )
+    expect(candidate).toBeDefined()
+    if (!candidate) return
+
+    const added = addStop(state, PLACES, {
+      placeId: candidate.id,
+      day: 1,
+      slot: 'morning',
+    })
+    expect(added.ok).toBe(true)
+    if (!added.ok) return
+
+    const morningCount = added.value.tripState.days[0].stops.filter(
+      (stop) => stop.slot === 'morning',
+    ).length
+    expect(morningCount).toBeLessThanOrEqual(1)
+
+    const moved = rebalanceDay(added.value.tripState, PLACES, {
+      day: 1,
+      direction: 'lighter',
+      targetDay: 3,
+    })
+    expect(moved.ok).toBe(true)
+    if (!moved.ok) return
+
+    const day3Slots = moved.value.tripState.days[2].stops.map((stop) => stop.slot)
+    expect(day3Slots.filter((slot) => slot === 'morning').length).toBeLessThanOrEqual(1)
+  })
 })
