@@ -14,21 +14,20 @@ rest are 1–9 places in day-trip towns. If I just took the nine highest-rated p
 be sending someone Rome → Venice → Florence in 72 hours, which is a worse trip than any one of those
 cities alone. So the scheduler anchors on a base city and clusters each day around it.
 
-That turned out to be load-bearing. Travel time is a haversine distance and a walking speed, so an
-unguarded Rome→Venice leg computes as about **90 hours on foot** and renders on a card as a
-straight-faced number. The engine has no concept of intercity transit and the dataset gives me nothing
-to build one from. I'd rather ship a planner that's clear about what it won't do than one that hands you
-an impossible day and sounds confident about it. Pace follows the same logic: relaxed drops the evening
-stop, packed adds an afternoon one, and lunch and dinner never move, because "relaxed" should mean fewer
-things, not no lunch.
+Travel time is a haversine distance and a walking speed, so an unguarded Rome→Venice leg computes as
+about **90 hours on foot** and renders on a card as a straight-faced number. The engine has no concept
+of intercity transit and the dataset gives me nothing to build one from. I'd rather ship a planner
+that's upfront about what it won't do than one that hands you an impossible day and acts like it's
+fine. Pace follows the same logic: relaxed drops the evening stop, packed adds an afternoon one, and
+lunch and dinner never move, because "relaxed" should mean fewer things, not no lunch.
 
 ## Some things that tripped me up along the way
 
 Both of these came from using the app and asking why.
 
-**Two sources of truth.** My first design held the user's preferences and regenerated the itinerary from them. Then I walked a scenario out loud: I delete the Colosseum by hand, and the next day I ask Navi to make day 2 lighter. That regeneration puts the Colosseum back in, because the prefs have no idea I removed it. Every AI edit would unknowingly overwrite a manual one. The fix was to make the itinerary the only state, ids and slots with no resolved objects, and have the buttons and the assistant both mutate it through the same pure `TripState → TripState` functions. Walking times, dates and day themes derive on render, so nothing goes stale and there's no second copy to drift. That change is the only reason manual and AI editing coexist, and I'm glad I found it on a in development instead of in a bug report.
+**Two sources of truth.** My first design held the user's preferences and regenerated the itinerary from them. Then I walked a scenario out loud: I delete the Colosseum by hand, and the next day I ask Navi to make day 2 lighter. That regeneration puts the Colosseum back in, because the prefs have no idea I removed it, and every AI edit would unknowingly overwrite a manual one. The fix was to make the itinerary the only state, ids and slots with no resolved objects, and have the buttons and the assistant both mutate it through the same pure `TripState → TripState` functions. Walking times, dates and day themes derive on render, so nothing goes stale and there's no second copy to drift. That change is the only reason manual and AI editing coexist, and I'm glad I caught it while building instead of in a bug report.
 
-**Browse said yes, the engine said no.** The Explore search listed all 103 places with an Add button on every row, but `addStop` rejects anything outside the base city, so you'd pick a place, pick a day, then get an error toast. My instinct was that the one-city rule was too strict. It wasn't, for the 90-hours reason above. The bug was the seam, not the constraint, so Explore now runs the engine's own eligibility check and tests assert the two surfaces agree. Auditing that turned up something I hadn't planned for: Burano (8 km), Padua and Como sit inside the scheduler's own 40 km radius but get rejected anyway, because the city-name check runs before the distance check. Those are real day trips. I left them blocked, since Venice→Burano computes as a two-hour walk across a lagoon, but I stopped flattening the explanation. They read "Day trip" now, and the detail pane says the round trip would eat most of one of three days. An unexplained limit looks like an oversight. A stated one looks like a decision.
+**Browse said yes, the engine said no.** The Explore search listed all 103 places with an Add button on every row, but `addStop` rejects anything outside the base city, so you'd pick a place, pick a day, then get an error toast. My instinct was that the one-city rule was too strict. It wasn't, for the 90-hours reason above. Explore and the engine just disagreed with each other, so Explore now runs the engine's own eligibility check and tests assert the two surfaces agree. Auditing that turned up something I hadn't planned for: Burano (8 km), Padua and Como sit inside the scheduler's own 40 km radius but get rejected anyway, because the city-name check runs before the distance check. Those are real day trips. I left them blocked, since Venice→Burano computes as a two-hour walk across a lagoon, but I stopped flattening the explanation. They read "Day trip" now, and the detail pane says the round trip would eat most of one of three days.
 
 ## The data is messy on purpose, so I normalized instead of cleaning
 
@@ -47,9 +46,9 @@ Tests iterate the real file rather than fixtures, and the first run caught a bug
 an overnight window (`8:00-01:00`) my regex read as closing before it opened. Win for the tests. A
 startup `auditPlaces()` pass reports what's actually in there, and its geographic check caught a planted
 coordinate error: Brera Antique Market says Milan but sits 156 km away, which had put a seven-hour walk
-as the first stop of a Milan trip. I fixed that structurally instead of overwriting a stated fact. Each
-city's center is a median, robust to its own outliers, and candidates past a sane radius get dropped.
-Where parsing stops being reliable, so do I — seasonal closures are gated on real closure wording ("open
+as the first stop of a Milan trip. Rather than overwrite a stated fact, I fixed it by using each city's
+median center, which is robust to its own outliers, and dropping candidates past a sane radius. Where
+parsing stops being reliable, so do I. Seasonal closures are gated on real closure wording ("open
 April–October **only**" closes a place, "**best** April–October" doesn't), and a rule like "third Sunday
 of the month" gets surfaced for the traveler instead of faked.
 
@@ -75,7 +74,7 @@ That one `TripState` object is also the sessionStorage format and the API wire f
 single shape to reason about end to end. **Delete the chat box and every edit still works, offline, with
 no network call.**
 
-Safety is structural, not prompted. The model never types a place id from memory. It gets candidates
+The model never types a place id from memory. It gets candidates
 from `searchPlaces` and passes those exact ids to `addStop`/`swapStop`, which re-validate against the
 dataset before mutating. Every write tool enforces the same invariants `buildItinerary` does and returns
 structured errors instead of throwing, so the model recovers rather than crashing the loop. The loop is
@@ -91,11 +90,11 @@ hallucinates places, ignores hours, and this dataset's messiness makes both wors
 compromise. I'd reconsider past ~10k.
 
 **As a building tool.** Throughout, for architecture discussion and TDD on the normalize/score/schedule
-pipeline. The part worth reporting is a failure. My first assistant build failed three tests: invalid
-JSON, a compound request that burned the whole tool loop doing nothing, and one that leaked raw
-function-call syntax into the chat. I'd already stacked four fixes on it, and the pile was the tell —
-nearly all were prompt-space patches in a system whose entire thesis is structural safety. So I stopped
-patching and had the code diagnosed properly: the tool layer was fine, the failure was concentrated in
+pipeline. My first assistant build actually failed three tests: invalid JSON, a compound request that
+burned the whole tool loop doing nothing, and one that leaked raw function-call syntax into the chat.
+I'd already stacked four fixes on it, and the pile was the tell — nearly all were prompt-space patches
+propping up a model that wasn't doing its job. So I stopped patching and had the code diagnosed
+properly: the tool layer was fine, the failure was concentrated in
 orchestration. My own plan had written the escape hatch, swap models if tool selection underperforms, so
 I took it, changed that one variable, held everything else constant, and deleted the patches based on
 what the re-test showed instead of what I predicted. One survived on merit, the `removeStop` gate,
@@ -115,12 +114,12 @@ function endpoint. I tried Stripe Projects first for provisioning and fell back 
 
 ## What I'd do with more time
 
-These are things I wanted and cut, not a wishlist.
+These are things I actually wanted to build and cut for time.
 
 - **Multi-city trips.** Day-level city anchoring plus an intercity transit model — a rail-duration
 matrix, since the dataset has none — so `estimateTravel` returns a transit leg instead of refusing to
-walk 400 km. It touches every tool signature, the scheduler and the day timeline. Worth building, not
-worth half-building on a deadline. Driving comes with it. I dropped driving once Venice made it obvious
+walk 400 km. It touches every tool signature, the scheduler and the day timeline, so it deserves being
+built properly instead of squeezed in near a deadline. Driving comes with it. I dropped driving once Venice made it obvious
 a canal city and sub-km hops don't want a car, and that simplification removed code *and* improved
 correctness, which is why it stuck.
 - **Offline and bad signal.** The person using this is standing in Italy on hotel wifi or roaming data.
