@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { auditPlaces, logDataAudit } from './lib/audit'
+import { auditPlaces, logDataAudit } from './lib/places/audit'
 import { PLACES } from './data/places'
 import './index.css'
 import App from './App.tsx'

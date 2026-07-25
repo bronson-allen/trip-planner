@@ -10,15 +10,20 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "fetch:place-images": "node --env-file=.env scripts/fetch-place-images.mjs"
+    "fetch:place-images": "node scripts/fetch-place-images.mjs"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.20",
+    "ai": "^7.0.37",
     "mapbox-gl": "^3.26.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router-dom": "^7.18.1"
+    "react-router-dom": "^7.18.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "@types/json-schema": "^7.0.15",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

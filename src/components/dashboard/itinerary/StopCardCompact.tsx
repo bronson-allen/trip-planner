@@ -1,7 +1,7 @@
 import { formatDuration, formatPlaceType } from '../../../data/places'
-import { SLOT_LABEL } from '../../../data/tripView'
-import type { ScheduledStop } from '../../../lib/itinerary'
-import { DragHandle, PlacePin } from './parts'
+import type { ScheduledStop } from '../../../lib/trip/itinerary'
+import { SLOT_LABEL } from '../../../lib/trip/tripState'
+import { DragHandle, PlacePin, TrashIcon, ClockIcon } from '../shared/parts'
 
 type StopCardCompactProps = {
   stop: ScheduledStop
@@ -9,6 +9,7 @@ type StopCardCompactProps = {
   onDragStart: () => void
   onDragEnd: () => void
   onFocusPlace: (id: string) => void
+  onRemove: () => void
 }
 
 export default function StopCardCompact({
@@ -17,6 +18,7 @@ export default function StopCardCompact({
   onDragStart,
   onDragEnd,
   onFocusPlace,
+  onRemove,
 }: StopCardCompactProps) {
   const { place, slot } = stop
   const durationLabel = place.duration.inferred
@@ -25,31 +27,51 @@ export default function StopCardCompact({
 
   return (
     <div className="trip-stop-row">
-      <DragHandle
-        label={`Drag to reorder ${place.name}`}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-      />
-
       <div className="trip-stop-compact">
         <PlacePin index={index + 1} />
 
         <div className="trip-stop-compact__copy">
-          <button
-            type="button"
-            className="trip-stop-compact__name"
-            onClick={() => onFocusPlace(place.id)}
-          >
-            {place.name}
-          </button>
+          <div className="trip-stop-compact__title">
+            <button
+              type="button"
+              className="trip-stop-compact__name"
+              onClick={() => onFocusPlace(place.id)}
+            >
+              {place.name}
+            </button>
+            {place.neighborhood ? (
+              <span className="trip-stop-compact__place">
+                {place.neighborhood} neighborhood
+              </span>
+            ) : null}
+          </div>
           <p className="trip-stop-compact__meta">
-            {SLOT_LABEL[slot]} · {durationLabel} · {formatPlaceType(place.type)}
+            {SLOT_LABEL[slot]} ·{' '}
+            <span className="trip-stop__duration-value">
+              <ClockIcon size={11} />
+              {durationLabel}
+            </span>{' '}
+            · {formatPlaceType(place.type)}
           </p>
         </div>
 
-        {place.neighborhood ? (
-          <span className="trip-stop-compact__place">{place.neighborhood}</span>
-        ) : null}
+        <div className="trip-stop-compact__side">
+          <DragHandle
+            label={`Drag to reorder ${place.name}`}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+          />
+        </div>
+
+        <button
+          type="button"
+          className="trip-stop__remove"
+          aria-label={`Remove ${place.name}`}
+          title="Remove stop"
+          onClick={onRemove}
+        >
+          <TrashIcon />
+        </button>
       </div>
     </div>
   )

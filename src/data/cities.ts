@@ -15,3 +15,11 @@ export const CITY_LOCATIONS: Record<string, CityLocation> = {
 export function getCityLocation(city: string): CityLocation {
   return CITY_LOCATIONS[city] ?? CITY_LOCATIONS.Rome
 }
+
+/**
+ * Only these four cities are dense enough in the dataset to fill three days, so they're the only
+ * ones that can anchor a trip. Also the allowlist for the `?city=` planner deep link.
+ */
+export function isPlannableCity(city: string): boolean {
+  return Object.hasOwn(CITY_LOCATIONS, city)
+}

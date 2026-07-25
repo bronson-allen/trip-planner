@@ -16,7 +16,6 @@ export type TripPlan = {
   interests: string[]
   pace: string
   budget: string
-  notes: string
 }
 
 /** Date metadata for one trip day. The itinerary supplies the stops and theme separately. */
@@ -35,7 +34,6 @@ export function defaultTripPlan(): TripPlan {
     interests: [],
     pace: 'Balanced',
     budget: '€€',
-    notes: '',
   }
 }
 
@@ -70,7 +68,20 @@ export function buildTripDays(startDate: string): TripDayView[] {
 export function tripRangeLabel(startDate: string) {
   const start = addDays(startDate, 0)
   const end = addDays(startDate, TRIP_DAYS - 1)
-  return `${formatShortDate(start)} – ${formatShortDate(end)}`
+  const sameYear = start.getFullYear() === end.getFullYear()
+  const startLabel = sameYear
+    ? formatShortDate(start)
+    : start.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+  const endLabel = end.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+  return `${startLabel} – ${endLabel}`
 }
 
 export function tripTitle(city: string) {
