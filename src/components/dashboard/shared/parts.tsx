@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { placeImages, type NormalizedPlace } from '../../../data/places'
+import { MAPBOX_TOKEN } from '../../../config/mapbox'
+import { placeImageUrl, type NormalizedPlace } from '../../../data/places'
 import {
   estimateTravel,
   formatRouteDistance,
@@ -129,7 +130,7 @@ export function TravelConnector({
 }
 
 export function PlaceImage({ place }: { place: NormalizedPlace }) {
-  const src = placeImages[place.id]
+  const src = placeImageUrl(place.id, MAPBOX_TOKEN)
   const [failed, setFailed] = useState(false)
 
   if (!src || failed) {

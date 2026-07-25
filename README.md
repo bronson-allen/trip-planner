@@ -20,7 +20,7 @@ npm run dev
 
 | Variable | Purpose |
 |---|---|
-| `MAPBOX_API_KEY` | Map tiles, walking routes. **Public `pk.` token** — it reaches the browser. |
+| `MAPBOX_API_KEY` | Map tiles, walking routes, place thumbnails. **Public `pk.` token** — it reaches the browser, but it is never committed: `placeImages.json` stores Mapbox URLs unsigned and `placeImageUrl()` signs them at read time. |
 | `OPENAI_API_KEY` | The Navi assistant. Server-side only, never bundled into the client. |
 | `APP_ORIGIN` | CORS allowlist. Optional locally; set to the deployed origin in production. |
 
@@ -34,7 +34,7 @@ manual edit run client-side with no network call.
 ```bash
 npm run dev       # frontend + assistant API
 npm run build     # typecheck + production build
-npm test          # 83 unit tests
+npm test          # 88 unit tests
 npm run lint      # oxlint
 ```
 
@@ -109,6 +109,7 @@ instead of an invented time. A `auditPlaces()` pass logs data-quality findings a
 ```
 api/assistant.ts         Vercel Function: tool-calling loop, security, logging
 src/
+  config/mapbox.ts       the only client-side read of the public Mapbox token
   data/                  italy.json (source of truth), normalized places, trip plan
   lib/
     places/              the dataset and what it means

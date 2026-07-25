@@ -15,7 +15,7 @@ Re-run these before submitting; all four passed on the current working tree.
 
 | Check | Result |
 |---|---|
-| `npm test` | 83 tests, 11 files, all passing |
+| `npm test` | 88 tests, 12 files, all passing |
 | `npx tsc -b` | clean |
 | `npm run lint` | clean (1 non-blocking fast-refresh warning in `dashboard/shared/parts.tsx`) |
 | `npm run build` | succeeds |
@@ -125,6 +125,15 @@ itself.
       behavior change. Deliberately **no `@/` path alias**: `api/assistant.ts` is built by Vercel's
       function runtime rather than Vite and imports `src/lib/trip/tools.ts` directly, so aliases
       there are an unnecessary deploy risk. `tsc -b`, 83 tests, lint and build all green after.
+- [x] ~~**Get the Mapbox token out of committed data.**~~ Added at the user's request and done
+      2026-07-24. `placeImages.json` had the `pk.` token baked into all 42 Mapbox static-image
+      URLs, so rotating it meant rewriting the dataset. The URLs are now stored unsigned and
+      `placeImageUrl(id, token)` signs them at read time from `MAPBOX_API_KEY`, with
+      `src/config/mapbox.ts` as the single client-side reader. It stays a *parameter* rather than
+      an `import.meta.env` lookup inside `src/data` or `src/lib`, because `api/assistant.ts`
+      imports that same tree and is built by the Vercel runtime, where `import.meta.env` does not
+      exist. Five tests in `tests/places/placeImages.test.ts` guard it, one of which fails if a
+      token ever reappears in the JSON.
 - [ ] **Error boundary around the dashboard.** Zero matches for `componentDidCatch` in `src/`.
       Navi swaps `tripState` wholesale from a server response; a render throw after a swap is an
       unrecoverable white screen.

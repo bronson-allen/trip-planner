@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "fetch:place-images": "node --env-file=.env scripts/fetch-place-images.mjs"
+    "fetch:place-images": "node scripts/fetch-place-images.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.20",

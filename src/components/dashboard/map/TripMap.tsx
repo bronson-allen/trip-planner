@@ -1,11 +1,12 @@
 import mapboxgl from 'mapbox-gl'
 import { useEffect, useRef, useState } from 'react'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { MAPBOX_TOKEN } from '../../../config/mapbox'
 import { getCityLocation } from '../../../data/cities'
 import {
   formatDuration,
   formatPlaceType,
-  placeImages,
+  placeImageUrl,
   type NormalizedPlace,
 } from '../../../data/places'
 import {
@@ -42,7 +43,7 @@ function buildPopupContent(place: NormalizedPlace) {
   const root = document.createElement('div')
   root.className = 'map-popup'
 
-  const imageUrl = placeImages[place.id]
+  const imageUrl = placeImageUrl(place.id, MAPBOX_TOKEN)
   if (imageUrl) {
     const img = document.createElement('img')
     img.className = 'map-popup__media'
@@ -194,7 +195,7 @@ export default function TripMap({
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map())
-  const token = import.meta.env.MAPBOX_API_KEY as string | undefined
+  const token = MAPBOX_TOKEN
   const [routeSummary, setRouteSummary] = useState<string | null>(null)
 
   useEffect(() => {

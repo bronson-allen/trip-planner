@@ -66,7 +66,7 @@ const LENIENT_TYPES = new Set([
 ])
 
 function printHelp() {
-  console.log(`Usage: node --env-file=.env scripts/fetch-place-images.mjs [options]
+  console.log(`Usage: node scripts/fetch-place-images.mjs [options]
 
 Options:
   --from <n|place_id>   Start at 1-based index or place id (e.g. 27 or place_027)
@@ -177,10 +177,14 @@ function toAllowedWikiImageUrl(url) {
   return url.replace(/\/\d+px-/, `/${WIKI_THUMB_WIDTH}px-`)
 }
 
-function mapboxStaticUrl(lat, lon, token) {
+/**
+ * Written unsigned on purpose — the token is not checked in. `placeImageUrl()`
+ * appends `access_token` from MAPBOX_API_KEY when the browser reads the URL.
+ */
+function mapboxStaticUrl(lat, lon) {
   const center = `${lon},${lat},${MAPBOX_ZOOM}`
   const pin = `pin-s+8b4513(${lon},${lat})`
-  return `https://api.mapbox.com/styles/v1/${MAPBOX_STYLE}/static/${pin}/${center}/${MAPBOX_SIZE}?access_token=${token}`
+  return `https://api.mapbox.com/styles/v1/${MAPBOX_STYLE}/static/${pin}/${center}/${MAPBOX_SIZE}`
 }
 
 function searchQuery(place) {
@@ -319,12 +323,6 @@ if (args.help) {
   process.exit(0)
 }
 
-const mapboxToken = process.env.MAPBOX_API_KEY
-if (!mapboxToken) {
-  console.error('MAPBOX_API_KEY missing. Run with: node --env-file=.env scripts/fetch-place-images.mjs')
-  process.exit(1)
-}
-
 const places = JSON.parse(readFileSync(ITALY_PATH, 'utf8'))
 
 /** @type {Record<string, string>} */
@@ -384,14 +382,14 @@ for (let i = 0; i < places.length; i++) {
       wikiCount++
       console.log(`${label} → wikipedia (${wiki.title})`)
     } else {
-      out[place.id] = mapboxStaticUrl(place.latitude, place.longitude, mapboxToken)
+      out[place.id] = mapboxStaticUrl(place.latitude, place.longitude)
       mapboxCount++
       console.log(`${label} → mapbox fallback`)
     }
   } catch (err) {
     out[place.id] = isMapboxUrl(prev)
       ? prev
-      : mapboxStaticUrl(place.latitude, place.longitude, mapboxToken)
+      : mapboxStaticUrl(place.latitude, place.longitude)
     mapboxCount++
     failures++
     console.warn(`${label} → mapbox fallback (error: ${err.message})`)
