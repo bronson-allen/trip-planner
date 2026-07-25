@@ -50,7 +50,9 @@ The model never types a place id from memory — it gets candidates from `search
 
 I deliberately skipped letting the LLM build the itinerary from raw JSON (hallucinations + hours + this dataset's mess), and skipped embeddings — 103 structured records want in-memory filtering, not a vector store. I'd reconsider past ~10k. The API returns `toolCalls`; the UI discards them on purpose. Navi's reply already narrates the mutation in plain language, and a mechanical tool trail would mostly repeat that for reviewers.
 
-**As a building tool.** Architecture discussion and TDD on normalize/score/schedule. My first assistant build failed three tests (invalid JSON, a no-op compound request, leaked function-call syntax). I'd stacked prompt-space patches; the pile was the tell. Diagnosis showed the tool layer was fine and orchestration was the problem, so I took my own escape hatch — swap models, hold everything else constant — and deleted patches based on the re-test. One survived on merit: the `removeStop` gate, because it's enforced in code.
+**As a building tool.** I leaned into AI-assisted development the way I'd use a strong pair: to accelerate turning decisions into working code, and as a sounding board for tradeoffs, security, scope, and build calls. I used both Cursor and Claude Code — for architecture discussions, planning, scaffolding, writing and refining code, running CLI commands, and working through TDD on the normalize/score/schedule pipeline. The judgment calls stayed mine: what to cut, what the engine must guarantee, and when a patch was papering over the wrong layer.
+
+That last part mattered on the assistant. My first build failed three tests (invalid JSON, a no-op compound request, leaked function-call syntax). I'd stacked prompt-space patches; the pile was the tell. Diagnosis — with the agents, against the failing cases — showed the tool layer was fine and orchestration was the problem, so I took my own escape hatch: swap models, hold everything else constant, and delete patches based on the re-test. One survived on merit: the `removeStop` gate, because it's enforced in code.
 
 ## Shipping it
 
