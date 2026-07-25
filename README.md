@@ -22,12 +22,12 @@ npm run dev
 |---|---|
 | `MAPBOX_API_KEY` | Map tiles, walking routes, place thumbnails. **Public `pk.` token** — it reaches the browser, but it is never committed: `placeImages.json` stores Mapbox URLs unsigned and `placeImageUrl()` signs them at read time. |
 | `OPENAI_API_KEY` | The Navi assistant. Server-side only, never bundled into the client. |
-| `APP_ORIGIN` | CORS allowlist. Optional locally; set to the deployed origin in production. |
+| `APP_ORIGIN` | CORS allowlist. Optional locally. Set to the deployed origin in production. |
 
 `npm run dev` serves the frontend and `/api/assistant` from one process — no `vercel dev` needed.
 
-Without `OPENAI_API_KEY` the app still works completely; you just lose Navi. Planning and every
-manual edit run client-side with no network call.
+Without `OPENAI_API_KEY` the app still works. You just lose Navi — planning and every manual edit run
+client-side with no network call.
 
 ### Scripts
 
@@ -88,8 +88,8 @@ so it can't go stale.
 Both the buttons and the assistant mutate it through the same pure functions in
 `src/lib/trip/tools.ts`. Delete the chat box and every edit still works.
 
-**The LLM is never in the correctness path.** It interprets requests and picks tools; the tools
-decide what's real, what's open and what's reachable. The model never types a place id from
+**The LLM is never in the correctness path.** It interprets requests and picks tools. The tools
+decide what's real, what's open, and what's reachable. The model never types a place id from
 memory — it gets candidates from `searchPlaces` and passes those exact ids on, and every write
 tool re-validates them against the dataset before mutating. The loop is capped at five tool steps,
 and `removeStop` is withheld unless the instruction explicitly asks to remove something.
