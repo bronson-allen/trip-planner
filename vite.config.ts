@@ -46,7 +46,7 @@ async function handleAssistantRequest(
   req: IncomingMessage,
   res: ServerResponse,
 ) {
-  const mod = (await server.ssrLoadModule('/api/assistant.ts')) as {
+  const mod = (await server.ssrLoadModule('/server/assistant.ts')) as {
     POST: (request: Request) => Promise<Response>
     OPTIONS: (request: Request) => Response
   }

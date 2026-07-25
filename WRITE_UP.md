@@ -13,9 +13,10 @@
 for a Stripe take-home, and cleaner than juggling provider dashboards by hand. Account ownership
 and Projects setup blocked that path, so I fell back to the Vercel CLI / Git integration: same
 hosting target, less ceremony. Env vars (`OPENAI_API_KEY`, `MAPBOX_API_KEY`, `APP_ORIGIN`) live in
-Vercel, not the repo. The production `/api/assistant` entry is an esbuild bundle of the shared
-engine — Vite's local middleware and Vercel's function runtime are not the same compiler, and the
-cross-folder `.ts` imports only work once they're bundled.
+Vercel, not the repo. The production `/api/assistant` entry is an esbuild bundle of
+`server/assistant.ts` — Vite's local middleware and Vercel's function runtime are not the same
+compiler, so the shared engine is bundled into `api/assistant.js` at build time rather than
+shipped as a graph of `.ts` imports.
 
 ---
 
