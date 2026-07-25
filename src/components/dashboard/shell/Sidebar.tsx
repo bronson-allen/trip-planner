@@ -16,16 +16,14 @@ type SidebarProps = {
 
 function BrandMark() {
   return (
-    <span className="sidebar__brand" aria-hidden="true">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path
-          d="M12 21s-6.5-5.2-6.5-10.2A6.5 6.5 0 0 1 12 4.3a6.5 6.5 0 0 1 6.5 6.5C18.5 15.8 12 21 12 21Z"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinejoin="round"
-        />
-        <circle cx="12" cy="10.8" r="2.2" stroke="currentColor" strokeWidth="1.8" />
-      </svg>
+    <span className="sidebar__brand">
+      <img
+        className="sidebar__brand-image"
+        src="/assets/logo.png"
+        alt="Trip Planner"
+        width={32}
+        height={32}
+      />
     </span>
   )
 }
