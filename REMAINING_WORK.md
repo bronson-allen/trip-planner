@@ -34,14 +34,17 @@ The compound case is the one the brief actually grades. It works.
 ## Blockers — submission fails without these
 
 ### 1. Commit and push the AI layer
-`git log` shows a single commit: *"Initial commit: deterministic trip planner (pre-AI-layer
-snapshot)."* Everything that makes this an *AI engineer* submission — `api/`, `src/lib/trip/tools.ts`,
-`src/lib/trip/tripState.ts`, `explore.ts`, `dayGlance.ts` and their tests — is uncommitted working-tree
-state on an unpushed local branch. A reviewer opening the repo today would not see it.
+**Resolved 2026-07-24.** Everything that makes this an *AI engineer* submission — `api/`,
+`src/lib/trip/tools.ts`, `src/lib/trip/tripState.ts`, `explore.ts`, `dayGlance.ts` and their tests —
+was uncommitted working-tree state on an unpushed local branch, invisible to a reviewer. It is now
+commit `83faf3b` on `origin/ai-assistant-integration`. Only the merge to `main` is outstanding, and
+`main` is the branch reviewers land on.
 
-- [ ] Commit the AI layer on `ai-assistant-integration`
-- [ ] Push the branch and merge to `main` (reviewers land on the default branch)
-- [ ] Confirm `.env` is not in the commit — it is gitignored, verify anyway
+- [x] Commit the AI layer on `ai-assistant-integration` — `83faf3b`, 77 files
+- [x] Push the branch — tracking `origin/ai-assistant-integration`
+- [ ] Merge to `main` (reviewers land on the default branch)
+- [x] Confirm `.env` is not in the commit — verified; only the `.env.example` placeholder is
+      tracked, and no `sk-` secret appears anywhere in the tree
 
 ### 2. Deploy, and deploy early
 No `.vercel/`, no `vercel` dependency, no live URL. The assessment requires one.
