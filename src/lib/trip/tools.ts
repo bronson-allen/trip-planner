@@ -47,8 +47,6 @@ export type SearchPlacesArgs = {
   maxPrice?: number
   /** Match any of these exact place types. */
   types?: string[]
-  /** Match one exact place type. Kept for simple callers. */
-  type?: string
   nearPlaceId?: string
   radiusKm?: number
   limit?: number
@@ -133,6 +131,36 @@ function inferredSlot(place: NormalizedPlace): SlotKind {
   return 'afternoon'
 }
 
+const SIGHT_SLOTS: SlotKind[] = ['morning', 'afternoon', 'evening']
+
+/** Pick a slot that fits the place without duplicating an occupied label on this day. */
+function resolveSlotForDay(
+  existingStops: PlannedStop[],
+  place: NormalizedPlace,
+  preferredSlot?: SlotKind,
+): SlotKind {
+  const used = new Set(existingStops.map((stop) => stop.slot))
+  const candidate = preferredSlot ?? inferredSlot(place)
+  if (!used.has(candidate)) return candidate
+
+  if (isMeal(place)) {
+    const mealSlot = place.type === 'cafe' ? 'lunch' : 'dinner'
+    const alternate = mealSlot === 'lunch' ? 'dinner' : 'lunch'
+    if (!used.has(mealSlot)) return mealSlot
+    if (!used.has(alternate)) return alternate
+    return mealSlot
+  }
+
+  const startIndex = Math.max(0, SIGHT_SLOTS.indexOf(candidate))
+  for (let offset = 0; offset < SIGHT_SLOTS.length; offset += 1) {
+    const slot = SIGHT_SLOTS[(startIndex + offset) % SIGHT_SLOTS.length]
+    if (!used.has(slot)) return slot
+  }
+
+  // Packed pace may carry two afternoon sights; afternoon is the only intentional duplicate.
+  return 'afternoon'
+}
+
 const SLOT_ORDER: Record<SlotKind, number> = {
   morning: 0,
   lunch: 1,
@@ -177,7 +205,6 @@ export function filterPlaces(
     if (used.has(place.id)) return false
     if (!isPlaceEligibleForTrip(place, places, state.city, dates)) return false
     if (args.types?.length && !args.types.includes(place.type)) return false
-    if (args.type && place.type !== args.type) return false
     if (args.tags?.length && !args.tags.every((tag) => place.tags.includes(tag))) return false
     if (args.maxPrice !== undefined && priceLevel(place.priceRange) > args.maxPrice) return false
     if (anchor && haversineMeters(anchor, place) > radiusMeters) return false
@@ -275,7 +302,7 @@ export function nearbyPlaces(
 export function addStop(
   state: TripState,
   places: NormalizedPlace[],
-  args: { placeId: string; day: number },
+  args: { placeId: string; day: number; slot?: SlotKind },
 ): ToolResult<MutationResult> {
   const day = state.days.find((candidate) => candidate.day === args.day)
   if (!day) return failure('DAY_NOT_FOUND', `Day ${args.day} is not in this itinerary.`)
@@ -283,7 +310,10 @@ export function addStop(
   const validation = validateNewPlace(state, places, args.placeId)
   if (!validation.ok) return validation
   const place = validation.value
-  const stop = { placeId: place.id, slot: inferredSlot(place) }
+  const stop = {
+    placeId: place.id,
+    slot: resolveSlotForDay(day.stops, place, args.slot),
+  }
   const next = {
     ...state,
     days: state.days.map((entry) =>
@@ -412,6 +442,7 @@ export function rebalanceDay(
   const moved = addStop(removed.value.tripState, places, {
     placeId: selected.place.id,
     day: args.targetDay,
+    slot: selected.stop.slot,
   })
   if (!moved.ok) return moved
   return success({

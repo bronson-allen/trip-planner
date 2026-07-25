@@ -1,5 +1,6 @@
 import { normalizePlace, type NormalizedPlace } from '../lib/places/normalize'
 import italy from './italy.json'
+import otherImagesJson from './otherImages.json'
 import placeImagesJson from './placeImages.json'
 
 export type Place = (typeof italy)[number]
@@ -16,6 +17,11 @@ export type { NormalizedPlace }
  * Mapbox entries are stored unsigned; read them through `placeImageUrl`.
  */
 export const placeImages: Record<string, string> = placeImagesJson
+
+/** Non-place UI assets (flags, marks) from Wikimedia or similar. */
+export const otherImages: Record<string, string> = otherImagesJson
+
+export const ITALY_FLAG_URL = otherImages['italy-flag']
 
 const MAPBOX_STATIC_PREFIX = 'https://api.mapbox.com/'
 

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { TRIP_DAYS, type TripPlan } from '../../data/tripPlan'
 import {
   addDays,
@@ -23,6 +23,8 @@ const INTERESTS = [
 ] as const
 const PACES = ['Relaxed', 'Balanced', 'Packed'] as const
 const BUDGETS = ['€', '€€', '€€€', '€€€€'] as const
+const BUILD_MS = 1500
+const BUILDING_COPY = "Rome wasn't built in a day, but your trip to Italy was!"
 
 type PlannerCardProps = {
   open: boolean
@@ -49,6 +51,8 @@ export default function PlannerCard({
   const [interests, setInterests] = useState<string[]>([])
   const [pace, setPace] = useState<string>('Balanced')
   const [budget, setBudget] = useState<string>('€€')
+  const [building, setBuilding] = useState(false)
+  const pendingPlanRef = useRef<TripPlan | null>(null)
 
   const tripRangeLabel = useMemo(() => {
     if (!startDate) return `${TRIP_DAYS}-day trip`
@@ -58,6 +62,12 @@ export default function PlannerCard({
   }, [startDate])
 
   useEffect(() => {
+    if (open) return
+    setBuilding(false)
+    pendingPlanRef.current = null
+  }, [open])
+
+  useEffect(() => {
     if (!open) return
 
     const previousOverflow = document.body.style.overflow
@@ -65,7 +75,7 @@ export default function PlannerCard({
     closeRef.current?.focus()
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape' && !building) onClose()
     }
 
     window.addEventListener('keydown', onKeyDown)
@@ -73,47 +83,77 @@ export default function PlannerCard({
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [open, onClose])
+  }, [building, open, onClose])
+
+  useEffect(() => {
+    if (!building || !pendingPlanRef.current) return
+
+    const timer = window.setTimeout(() => {
+      const plan = pendingPlanRef.current
+      if (!plan) return
+      pendingPlanRef.current = null
+      onSubmit(plan)
+    }, BUILD_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [building, onSubmit])
 
   if (!open) return null
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    onSubmit({
+    pendingPlanRef.current = {
       startDate,
       location,
       city,
       interests,
       pace,
       budget,
-    })
+    }
+    setBuilding(true)
   }
 
   return (
-    <div className="planner-overlay" onClick={onClose}>
+    <div className="planner-overlay" onClick={building ? undefined : onClose}>
       <div
         className="planner-card"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-busy={building}
         onClick={(event) => event.stopPropagation()}
       >
-        <button
-          ref={closeRef}
-          type="button"
-          className="planner-card__close"
-          aria-label="Close trip planner"
-          onClick={onClose}
-        >
-          ×
-        </button>
+        {!building ? (
+          <button
+            ref={closeRef}
+            type="button"
+            className="planner-card__close"
+            aria-label="Close trip planner"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        ) : null}
 
+        {building ? (
+          <div
+            className="planner-building"
+            style={{ '--build-ms': `${BUILD_MS}ms` } as CSSProperties}
+          >
+            <p className="planner-building__copy">{BUILDING_COPY}</p>
+            <div className="planner-building__progress" aria-hidden="true" />
+            <p className="planner-building__status" aria-live="polite">
+              Building your itinerary…
+            </p>
+          </div>
+        ) : (
+          <>
         <header className="planner-card__header">
           <h2 id={titleId} className="planner-card__title">
             Plan your trip
           </h2>
           <p className="planner-card__subtitle">
-            3 days, one city, built around what you like.
+            3 days, one city, built around your interests.
           </p>
         </header>
 
@@ -224,6 +264,8 @@ export default function PlannerCard({
             <span aria-hidden="true">→</span>
           </button>
         </form>
+          </>
+        )}
       </div>
     </div>
   )

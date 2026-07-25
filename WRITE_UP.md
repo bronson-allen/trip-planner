@@ -15,7 +15,7 @@ and Projects setup blocked that path, so I fell back to the Vercel CLI / Git int
 hosting target, less ceremony. Env vars (`OPENAI_API_KEY`, `MAPBOX_API_KEY`, `APP_ORIGIN`) live in
 Vercel, not the repo. The production `/api/assistant` entry is an esbuild bundle of
 `server/assistant.ts` — Vite's local middleware and Vercel's function runtime are not the same
-compiler, so the shared engine is bundled into `api/assistant.js` at build time rather than
+compiler, so the shared engine is bundled into a committed `api/assistant.js` rather than
 shipped as a graph of `.ts` imports.
 
 ---
@@ -105,9 +105,10 @@ it gets candidate ids only from `searchPlaces` output and passes those exact ids
 enforces the same invariants `buildItinerary` does: the place is real, in the base city, within
 the city radius, open on the trip dates, not already scheduled. Violations return structured
 errors rather than throwing, so the model can recover instead of the loop crashing. The tool loop
-is capped at five steps plus one tool-free step for the final answer, and the destructive
-`removeStop` tool is withheld from the model entirely unless the instruction explicitly asks to
-remove, delete or drop something.
+is capped at five steps plus one tool-free step for the final answer. `removeStop` is excluded from
+the active tool list unless the instruction matches a server-side regex for remove / delete / drop /
+take out — so a failed swap or preference tweak can't quietly delete stops; the system prompt says
+the same thing, but the gate is enforced in code.
 
 Around that: key server-side only, zod validation on the request body, every incoming itinerary
 state re-validated against the dataset, a 500-character instruction cap, per-IP rate limiting,
@@ -134,6 +135,23 @@ Tool-calling handles it in one path: the model picks a tool, the tool returns re
 reacts. It also handles read-only questions the UI has no surface for at all — *"why is this stop
 before lunch?"* — which mutate nothing.
 
+I deliberately do **not** surface the raw `toolCalls` array in the chat UI, even though the API
+returns it. After *"make day 2 lighter,"* the reply already says what changed — *"I've moved
+Palatine Hill from Day 2 to Day 1…"* — and the itinerary updates beside it. A "searched → swapped
+→ rebalanced" trail would prove the architecture to a reviewer skimming the live URL, but it
+wouldn't help a traveler, and the code plus this note already carry that proof. The product
+surface stays the summary; the tool layer stays in the network tab and the repo.
+
+**Multi-turn chat is real, not cosmetic.** Navi keeps the full transcript in the panel, but
+only the last **three back-and-forths** — six messages, up to three user and three assistant —
+are sent with each new request; your latest message goes separately as `instruction`. The model
+sees that sliding window as `messages`, not just the newest sentence. Older turns stay visible in
+the UI but drop out of model context, so a fourth exchange ago won't resolve "that one" or
+"undo that." The current `tripState` is still sent every time and the system prompt treats the
+itinerary as authoritative if an older reply disagrees with the schedule. There is no server-side
+session store — bounded client-sent history is enough for follow-ups like "do that for day 3"
+without pretending to remember a whole trip-planning session.
+
 I deliberately did **not** let the LLM generate the itinerary from the raw JSON. At this scale
 that's the tempting shortcut and the wrong one: it hallucinates places, ignores opening hours, and
 produces infeasible schedules — and the messiness of this particular dataset makes all three
@@ -153,8 +171,6 @@ reconsider past ~10k records.
 - **An eval set for the assistant.** Correctness is currently enforced structurally by the tools
   and verified by hand. A labeled set of instructions → expected tool calls would catch prompt
   regressions the way the 78 unit tests catch engine regressions.
-- **Multi-turn memory.** Each instruction is evaluated independently against current state; a
-  longer refinement session would benefit from conversational context.
 - **Ordinal date rules.** A few entries close on rules like "third Sunday of the month." I parse
   day-of-week and month windows but deliberately don't attempt ordinal-in-month parsing, and say
   so on the affected cards rather than guessing.

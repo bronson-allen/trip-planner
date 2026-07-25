@@ -1,18 +1,17 @@
 type NavItem = {
-  id: string
+  id: 'map' | 'list'
   label: string
-  icon: 'map' | 'list' | 'profile'
+  icon: 'map' | 'list'
 }
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'map', label: 'Map', icon: 'map' },
   { id: 'list', label: 'List', icon: 'list' },
-  { id: 'profile', label: 'Profile', icon: 'profile' },
 ]
 
 type SidebarProps = {
-  activeId?: string
-  onSelect?: (id: string) => void
+  activeId?: NavItem['id']
+  onSelect?: (id: NavItem['id']) => void
 }
 
 function BrandMark() {
@@ -62,17 +61,7 @@ function NavIcon({ icon }: { icon: NavItem['icon'] }) {
     )
   }
 
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.8" />
-      <path
-        d="M5 19.5c1.6-3.2 4-4.8 7-4.8s5.4 1.6 7 4.8"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
+  return null
 }
 
 export default function Sidebar({ activeId = 'map', onSelect }: SidebarProps) {

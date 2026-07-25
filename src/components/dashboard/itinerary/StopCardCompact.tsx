@@ -46,12 +46,18 @@ export default function StopCardCompact({
             ) : null}
           </div>
           <p className="trip-stop-compact__meta">
-            {SLOT_LABEL[slot]} ·{' '}
+            <span>{SLOT_LABEL[slot]}</span>
+            <span className="trip-stop-compact__meta-sep" aria-hidden="true">
+              ·
+            </span>
             <span className="trip-stop__duration-value">
               <ClockIcon size={11} />
-              {durationLabel}
-            </span>{' '}
-            · {formatPlaceType(place.type)}
+              <span>{durationLabel}</span>
+            </span>
+            <span className="trip-stop-compact__meta-sep" aria-hidden="true">
+              ·
+            </span>
+            <span>{formatPlaceType(place.type)}</span>
           </p>
         </div>
 

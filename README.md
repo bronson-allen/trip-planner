@@ -108,7 +108,7 @@ instead of an invented time. A `auditPlaces()` pass logs data-quality findings a
 
 ```
 server/assistant.ts      Source for the tool-calling loop (bundled to api/assistant.js for Vercel)
-api/assistant.js         Emitted at build time — the production Vercel Function entry
+api/assistant.js         Committed esbuild bundle — Vercel detects `/api` before build runs
 src/
   config/mapbox.ts       the only client-side read of the public Mapbox token
   data/                  italy.json (source of truth), normalized places, trip plan

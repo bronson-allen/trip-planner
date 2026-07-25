@@ -139,8 +139,7 @@ function summarizeDays(windows: HoursWindow[]): string | null {
 }
 
 /**
- * Tolerant parser for the dataset's ~8 distinct hours formats (see plan_proposal.md §2).
- * Never throws — unparseable input becomes `confidence: 'unknown'` with the raw text
+ * Tolerant parser for the dataset's heterogeneous hours strings. Never throws — unparseable input becomes `confidence: 'unknown'` with the raw text
  * preserved for display, rather than a guessed value presented as fact.
  */
 export function parseHours(raw: string | null): ParsedHours {
@@ -197,8 +196,7 @@ export function normalizeTags(tags: string[]): string[] {
 /**
  * Pure, non-destructive transform: raw place -> typed NormalizedPlace. Never mutates or
  * reads back `italy.json` — every filled gap is attributed (`inferred`, `confidence`)
- * rather than silently guessed. See plan_proposal.md §2 for the audited gotchas this exists
- * to handle (messy hours strings, missing duration, tag spelling drift).
+ * rather than silently guessed. Handles messy hours strings, missing duration, and tag drift.
  */
 export function normalizePlace(raw: RawPlace): NormalizedPlace {
   return {

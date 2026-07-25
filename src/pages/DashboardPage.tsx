@@ -148,12 +148,7 @@ export default function DashboardPage() {
 
   return (
     <div className="dashboard">
-      <Sidebar
-        activeId={view}
-        onSelect={(id) => {
-          if (id === 'map' || id === 'list') setView(id)
-        }}
-      />
+      <Sidebar activeId={view} onSelect={setView} />
 
       <DashboardHeader title={tripTitle(plan.city)} duration={tripRangeLabel(plan.startDate)} />
 
