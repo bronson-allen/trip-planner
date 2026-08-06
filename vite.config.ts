@@ -1,4 +1,6 @@
+import { existsSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { join } from 'node:path'
 import react from '@vitejs/plugin-react'
 import { loadEnv, type Plugin, type ViteDevServer } from 'vite'
 import { defineConfig } from 'vitest/config'
@@ -13,27 +15,28 @@ function readBody(req: IncomingMessage): Promise<Buffer> {
 }
 
 /**
- * Serves `/api/assistant` during `npm run dev` so Navi works without a separate
- * `vercel dev` process. Production still uses the Vercel Function in `api/`.
+ * Serves `/api/<name>` during `npm run dev` by loading `server/<name>.ts` directly,
+ * so a new endpoint works the moment its file exists — no route table to update.
+ * Production still uses the matching Vercel Function built by `bundle:api`.
  */
-function assistantApiPlugin(): Plugin {
+function apiPlugin(): Plugin {
   return {
-    name: 'assistant-api',
+    name: 'api',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url?.startsWith('/api/assistant')) {
-          next()
-          return
-        }
+        const path = req.url?.split('?')[0] ?? ''
+        const match = /^\/api\/([\w-]+)$/.exec(path)
+        const modulePath = match ? `/server/${match[1]}.ts` : null
+        if (!modulePath || !existsSync(join(server.config.root, modulePath))) return next()
 
         try {
-          await handleAssistantRequest(server, req, res)
+          await handleApiRequest(server, modulePath, req, res)
         } catch (error) {
-          console.error('[assistant-api]', error)
+          console.error(`[api]${modulePath}`, error)
           if (!res.headersSent) {
             res.statusCode = 500
             res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ error: 'Assistant middleware failed.' }))
+            res.end(JSON.stringify({ error: 'API middleware failed.' }))
           }
         }
       })
@@ -41,24 +44,25 @@ function assistantApiPlugin(): Plugin {
   }
 }
 
-async function handleAssistantRequest(
+async function handleApiRequest(
   server: ViteDevServer,
+  modulePath: string,
   req: IncomingMessage,
   res: ServerResponse,
 ) {
-  const mod = (await server.ssrLoadModule('/server/assistant.ts')) as {
+  const mod = (await server.ssrLoadModule(modulePath)) as {
     POST: (request: Request) => Promise<Response>
     OPTIONS: (request: Request) => Response
   }
 
   const host = req.headers.host ?? 'localhost:5173'
-  const url = `http://${host}${req.url ?? '/api/assistant'}`
+  const url = `http://${host}${req.url ?? '/'}`
   const headers = new Headers()
   for (const [key, value] of Object.entries(req.headers)) {
     if (value == null) continue
     headers.set(key, Array.isArray(value) ? value.join(',') : value)
   }
-
+  
   const method = req.method ?? 'GET'
   const request =
     method === 'GET' || method === 'HEAD'
@@ -87,7 +91,7 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [react(), assistantApiPlugin()],
+    plugins: [react(), apiPlugin()],
     // Only expose the public pk. token — not every MAPBOX_* var (e.g. sk. secrets).
     envPrefix: ['VITE_', 'MAPBOX_API_KEY'],
     test: {
